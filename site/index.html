@@ -1,0 +1,28 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>demo, deterministic offline model, not a production security boundary</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>demo, deterministic offline model, not a production security boundary</h1>
+      <p>AST checks ran in your browser; database checks ran in CI.</p>
+    </header>
+    <main>
+      <label>Question <input id="question" type="text" /></label>
+      <label>SQL <textarea id="sql"></textarea></label>
+      <button id="run">Run guard</button>
+      <ul id="examples">
+        <li><button type="button" data-q="top 3 products by revenue">top 3 products by revenue</button></li>
+        <li><button type="button" data-q="SELECT pg_sleep(9)">SELECT pg_sleep(9)</button></li>
+        <li><button type="button" data-q="how many customers in atlantis">unsupported question</button></li>
+      </ul>
+      <pre id="out"></pre>
+    </main>
+    <script src="pyodide/pyodide.js"></script>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

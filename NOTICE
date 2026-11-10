@@ -1,0 +1,51 @@
+text-to-sql-guardrails
+Copyright 2026 Arpan Bom
+
+This product includes software developed by third parties.
+Idea-only credits: see REFERENCES.md (not a dependency list).
+
+Runtime (requirements.txt):
+  asn1crypto 1.5.1 — MIT
+  pg8000 1.31.6 — BSD-3-Clause
+  python-dateutil 4.0.0 — BSD-3-Clause
+  scramp 1.5.0 — MIT-0
+  sqlglot 30.31.0 — MIT
+  tzdata 2026.6 — Apache-2.0
+
+Development and test (requirements-dev.txt):
+  ast-serialize 0.13.1 — MIT
+  build 1.6.1 — MIT
+  click 8.5.1 — BSD-3-Clause
+  greenlet 3.5.6 — MIT
+  iniconfig 2.3.1 — MIT
+  librt 0.16.0 — MIT
+  mypy 2.4.1 — MIT
+  mypy-extensions 1.2.0 — MIT
+  packaging 26.3 — Apache-2.0 or BSD-2-Clause
+  pathspec 1.1.1 — Mozilla Public License 2.0
+  pip-tools 7.6.2 — BSD-3-Clause
+  playwright 1.65.0 — Apache-2.0
+  pluggy 1.7.0 — MIT
+  pygments 2.21.0 — BSD-2-Clause
+  pyproject-hooks 1.3.3 — MIT
+  pytest 9.2.0 — MIT
+  pytest-timeout 2.4.0 — MIT
+  ruff 0.17.4 — MIT
+  typing-extensions 4.16.0 — MIT
+  wheel 0.48.0 — MIT
+
+Browser and CI service (not in pip locks):
+  Pyodide 314.0.7 — MPL-2.0 (includes CPython — PSF-2.0)
+  CPython 3.14 (as shipped in Pyodide) — PSF-2.0
+  Chromium (Playwright test dependency) — BSD-3-Clause
+  PostgreSQL 17.11 (CI service image) — PostgreSQL License
+
+GitHub Actions (pinned in .github/workflows/):
+  actions/checkout — MIT
+  actions/setup-python — MIT
+  actions/cache — MIT
+  actions/upload-artifact — MIT
+  actions/download-artifact — MIT
+  actions/configure-pages — MIT
+  actions/upload-pages-artifact — MIT
+  actions/deploy-pages — MIT

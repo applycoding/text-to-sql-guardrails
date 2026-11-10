@@ -1,0 +1,10 @@
+{
+  "pyodide": {
+    "url": "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide-core-314.0.7.tar.bz2",
+    "sha256": "2abdcc2e35208af406e07724cffa85bc582ced97e9028383ecf5462541393f95"
+  },
+  "sqlglot_wheel": {
+    "url": "https://pypi.org/packages/py3/s/sqlglot/sqlglot-30.31.0-py3-none-any.whl",
+    "sha256": "51a876a43edecf8ee6fd4c872cf6713d899c4234256bba0be96a8c7c8d8781e8"
+  }
+}
