@@ -21,8 +21,10 @@ def test_factory_default_stub() -> None:
 
 def test_unknown_model_exits_2() -> None:
     env = {**os.environ, "T2SQL_MODEL": "not-a-model"}
+    env.pop("T2SQL_MODEL", None)
+    env["T2SQL_MODEL"] = "not-a-model"
     proc = subprocess.run(
-        [sys.executable, "-m", "t2sql", "check", "--sql", "SELECT 1"],
+        [sys.executable, "-m", "t2sql", "ask", "hello"],
         env=env,
         capture_output=True,
         text=True,

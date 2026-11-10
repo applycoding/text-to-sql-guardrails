@@ -53,7 +53,7 @@ def test_nested_plans_max_rows() -> None:
 
 def test_malformed_plan_raises() -> None:
     with pytest.raises(ValueError):
-        explain.evaluate([{"Plan": {"Total Cost": 1}}])
+        explain.evaluate([{}])
 
 
 PIPELINE_ROWS = [

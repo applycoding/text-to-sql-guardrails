@@ -17,6 +17,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "eval_expected.json"
 def _admin_rows(sql: str, admin_conn: pg8000.native.Connection) -> list[list[object]]:
     if not sql:
         return []
+    admin_conn.run("SET search_path TO shop, public")
     return [list(row) for row in admin_conn.run(sql)]
 
 
@@ -39,13 +40,7 @@ def test_eval_regression(db_seeded: None, admin_conn: pg8000.native.Connection) 
             gold_rows = _admin_rows(gold, admin_conn)
             assert result.rows == gold_rows
         elif result.sql:
-            gold_rows = _admin_rows(
-                result.sql.replace("customers", "shop.customers")
-                .replace("orders", "shop.orders")
-                .replace("products", "shop.products")
-                .replace("order_items", "shop.order_items"),
-                admin_conn,
-            )
+            gold_rows = _admin_rows(result.sql, admin_conn)
             assert result.rows == gold_rows
     for question in data["refusals"]:
         result = run_question(model, question)

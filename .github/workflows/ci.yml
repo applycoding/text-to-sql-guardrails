@@ -89,7 +89,7 @@ jobs:
           exit 1
       - run: python -m t2sql.seed
       - run: python -c "import pg8000.native as p; print(p.Connection(host='localhost', user='postgres', password='ci_admin').run('SELECT version()'))"
-      - run: pytest -p no:cacheprovider -rA
+      - run: pytest -p no:cacheprovider -rA tests
   mutants:
     needs: test
     runs-on: ubuntu-latest

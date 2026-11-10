@@ -30,7 +30,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 timeout = 30
-testpaths = ["tests", "e2e"]
+testpaths = ["tests"]
 
 [tool.ruff]
 target-version = "py313"

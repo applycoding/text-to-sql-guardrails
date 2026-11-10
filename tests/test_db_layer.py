@@ -18,6 +18,8 @@ INSERT_SQL = "INSERT INTO shop.orders VALUES (99999, 1, '2025-01-01', 'x')"
 
 
 def _sqlstate(exc: pg8000.native.Error) -> str:
+    if exc.args and isinstance(exc.args[0], dict):
+        return str(exc.args[0].get("C", "XXXXX"))
     return str(getattr(exc, "sqlstate", None) or "XXXXX")
 
 
