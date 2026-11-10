@@ -11,7 +11,7 @@ from typing import Any
 import pg8000.native
 import pytest
 
-ALLOWED_HOST = os.environ.get("T2SQL_DSN_HOST", "localhost")
+ALLOWED_HOST = os.environ.get("T2SQL_DSN_HOST", "postgres")
 ALLOWED_PORT = int(os.environ.get("T2SQL_DSN_PORT", "5432"))
 
 

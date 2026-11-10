@@ -27,7 +27,7 @@ class ExecResult:
 
 def _dsn() -> dict[str, Any]:
     return {
-        "host": os.environ.get("T2SQL_DSN_HOST", "localhost"),
+        "host": os.environ.get("T2SQL_DSN_HOST", "postgres"),
         "port": int(os.environ.get("T2SQL_DSN_PORT", "5432")),
         "database": os.environ.get("T2SQL_DSN_DATABASE", "postgres"),
         "user": os.environ.get("T2SQL_DSN_USER", "t2s_reader"),

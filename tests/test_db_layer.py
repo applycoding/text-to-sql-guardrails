@@ -124,7 +124,7 @@ def test_wrong_password(db_seeded: None) -> None:
 
     with pytest.raises(pg8000.native.Error) as exc:
         pg8000.native.Connection(
-            host=os.environ.get("T2SQL_DSN_HOST", "localhost"),
+            host=os.environ.get("T2SQL_DSN_HOST", "postgres"),
             port=int(os.environ.get("T2SQL_DSN_PORT", "5432")),
             database=os.environ.get("T2SQL_DSN_DATABASE", "postgres"),
             user="t2s_reader",

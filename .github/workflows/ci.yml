@@ -15,8 +15,8 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements-dev.txt
       - run: pip install -e .
-      - run: ruff check .
-      - run: ruff format --check .
+      - run: ruff check src tests tools e2e .github
+      - run: ruff format --check src tests tools e2e .github
       - run: mypy --strict src
       - run: python tools/check_notice.py
       - name: SPDX headers
@@ -65,7 +65,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      T2SQL_DSN_HOST: localhost
+      T2SQL_DSN_HOST: postgres
       T2SQL_DSN_PORT: 5432
       T2SQL_DSN_DATABASE: postgres
       T2SQL_DSN_ADMIN_PASSWORD: ci_admin
@@ -78,7 +78,7 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: pip install -e .
       - run: python -m t2sql.seed
-      - run: python -c "import pg8000.native as p; print(p.Connection(user='postgres', password='ci_admin').run('SELECT version()'))"
+      - run: python -c "import pg8000.native as p; print(p.Connection(host='postgres', user='postgres', password='ci_admin').run('SELECT version()'))"
       - run: pytest -p no:cacheprovider -rA
   mutants:
     needs: test
@@ -90,7 +90,7 @@ jobs:
           POSTGRES_PASSWORD: ci_admin
           POSTGRES_INITDB_ARGS: --locale=C --encoding=UTF8
     env:
-      T2SQL_DSN_HOST: localhost
+      T2SQL_DSN_HOST: postgres
       T2SQL_DSN_PORT: 5432
       T2SQL_DSN_DATABASE: postgres
       T2SQL_DSN_ADMIN_PASSWORD: ci_admin
@@ -114,7 +114,7 @@ jobs:
           POSTGRES_PASSWORD: ci_admin
           POSTGRES_INITDB_ARGS: --locale=C --encoding=UTF8
     env:
-      T2SQL_DSN_HOST: localhost
+      T2SQL_DSN_HOST: postgres
       T2SQL_DSN_PORT: 5432
       T2SQL_DSN_DATABASE: postgres
       T2SQL_DSN_ADMIN_PASSWORD: ci_admin

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def _admin_conn() -> pg8000.native.Connection:
     return pg8000.native.Connection(
-        host=os.environ.get("T2SQL_DSN_HOST", "localhost"),
+        host=os.environ.get("T2SQL_DSN_HOST", "postgres"),
         port=int(os.environ.get("T2SQL_DSN_PORT", "5432")),
         database=os.environ.get("T2SQL_DSN_DATABASE", "postgres"),
         user=os.environ.get("T2SQL_DSN_ADMIN_USER", "postgres"),
