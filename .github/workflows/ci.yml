@@ -59,6 +59,8 @@ jobs:
         env:
           POSTGRES_PASSWORD: ci_admin
           POSTGRES_INITDB_ARGS: --locale=C --encoding=UTF8
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 10s
@@ -77,6 +79,14 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements-dev.txt
       - run: pip install -e .
+      - run: |
+          for attempt in $(seq 1 30); do
+            if python -c "import pg8000.native as p; p.Connection(host='localhost', user='postgres', password='ci_admin').run('SELECT 1')"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
       - run: python -m t2sql.seed
       - run: python -c "import pg8000.native as p; print(p.Connection(host='localhost', user='postgres', password='ci_admin').run('SELECT version()'))"
       - run: pytest -p no:cacheprovider -rA
@@ -89,6 +99,13 @@ jobs:
         env:
           POSTGRES_PASSWORD: ci_admin
           POSTGRES_INITDB_ARGS: --locale=C --encoding=UTF8
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       T2SQL_DSN_HOST: localhost
       T2SQL_DSN_PORT: 5432
@@ -102,6 +119,14 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements-dev.txt
       - run: pip install -e .
+      - run: |
+          for attempt in $(seq 1 30); do
+            if python -c "import pg8000.native as p; p.Connection(host='localhost', user='postgres', password='ci_admin').run('SELECT 1')"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
       - run: python -m t2sql.seed
       - run: python tools/mutants.py
   site:
@@ -113,6 +138,13 @@ jobs:
         env:
           POSTGRES_PASSWORD: ci_admin
           POSTGRES_INITDB_ARGS: --locale=C --encoding=UTF8
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       T2SQL_DSN_HOST: localhost
       T2SQL_DSN_PORT: 5432
@@ -126,6 +158,14 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements-dev.txt
       - run: pip install -e .
+      - run: |
+          for attempt in $(seq 1 30); do
+            if python -c "import pg8000.native as p; p.Connection(host='localhost', user='postgres', password='ci_admin').run('SELECT 1')"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
       - run: python -m t2sql.seed
       - run: playwright install --with-deps chromium
       - run: python tools/build_site.py

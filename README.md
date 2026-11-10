@@ -1,6 +1,6 @@
 # text-to-sql-guardrails
 
-**Demo, deterministic offline model, not a production security boundary.**
+**demo, deterministic offline model, not a production security boundary**
 
 Natural-language questions become one PostgreSQL `SELECT` over the small `shop` demo schema. Every query passes three layers before execution:
 
