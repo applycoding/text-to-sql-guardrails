@@ -33,6 +33,8 @@ Development and test (requirements-dev.txt):
   ruff 0.17.4 — MIT
   typing-extensions 4.16.0 — MIT
   wheel 0.48.0 — MIT
+  pip 26.3 — MIT
+  setuptools 84.2.1 — MIT
 
 Browser and CI service (not in pip locks):
   Pyodide 314.0.7 — MPL-2.0 (includes CPython — PSF-2.0)
@@ -40,7 +42,7 @@ Browser and CI service (not in pip locks):
   Chromium (Playwright test dependency) — BSD-3-Clause
   PostgreSQL 17.11 (CI service image) — PostgreSQL License
 
-GitHub Actions (pinned in .github/workflows/):
+github-actions (pinned in .github/workflows/):
   actions/checkout — MIT
   actions/setup-python — MIT
   actions/cache — MIT
