@@ -62,7 +62,15 @@ def run(sql: str, cfg: GuardConfig | None = None) -> ExecResult:
             if not ok:
                 return ExecResult(False, code, "", sql, None)
         fetched = conn.run(sql)
-        rows: list[list[Any]] = [list(row) for row in fetched]
+        rows: list[list[Any]] = []
+        for row in fetched:
+            normalized: list[Any] = []
+            for cell in row:
+                if hasattr(cell, "isoformat"):
+                    normalized.append(cell.isoformat())
+                else:
+                    normalized.append(cell)
+            rows.append(normalized)
         payload = json.dumps(rows, default=str).encode("utf-8")
         if len(payload) > policy.MAX_RESULT_BYTES:
             return ExecResult(False, "RESULT_TOO_LARGE", str(len(payload)), sql, None)
