@@ -79,19 +79,17 @@ class StubModel:
             n = int(m.group(1))
             if n > 99:
                 return None
-            sel = (
-                sqlglot.parse_one(
-                    (
-                        "SELECT p.name, SUM(oi.quantity * oi.unit_price_cents) AS revenue_cents "
-                        "FROM products p "
-                        "JOIN order_items oi ON oi.product_id = p.id "
-                        "GROUP BY p.id, p.name "
-                        f"ORDER BY revenue_cents DESC, p.id LIMIT {n}"
-                    ),
-                    read="postgres",
-                )
+            top_sql = sqlglot.parse_one(
+                (
+                    "SELECT p.name, SUM(oi.quantity * oi.unit_price_cents) AS revenue_cents "
+                    "FROM products p "
+                    "JOIN order_items oi ON oi.product_id = p.id "
+                    "GROUP BY p.id, p.name "
+                    f"ORDER BY revenue_cents DESC, p.id LIMIT {n}"
+                ),
+                read="postgres",
             ).sql(dialect="postgres")
-            return sel
+            return top_sql
 
         if CATEGORY_RE.match(q):
             return sqlglot.parse_one(
@@ -108,7 +106,7 @@ class StubModel:
         m = STRICT_MONTH_RE.match(q)
         if m:
             year = int(m.group(1))
-            sel = sqlglot.parse_one(
+            month_query = sqlglot.parse_one(
                 (
                     "SELECT date_trunc('month', ordered_at)::date AS month, "
                     "COUNT(*) AS order_count "
@@ -118,7 +116,7 @@ class StubModel:
                 ),
                 read="postgres",
             )
-            return sel.sql(dialect="postgres")
+            return month_query.sql(dialect="postgres")
 
         if "atlantis" in q or "pg_sleep" in q or "staff" in q or "drop table" in q:
             return None

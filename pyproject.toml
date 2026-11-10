@@ -46,3 +46,7 @@ select = ["E", "F", "I", "W", "UP", "B"]
 python_version = "3.13"
 strict = true
 packages = ["t2sql"]
+
+[[tool.mypy.overrides]]
+module = ["pg8000", "pg8000.*"]
+ignore_missing_imports = true

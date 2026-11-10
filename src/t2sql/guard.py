@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import cast
 
 import sqlglot
 from sqlglot import exp
@@ -47,7 +48,7 @@ def _count_nodes(node: exp.Expression) -> int:
 
 
 def _statements(raw: str) -> list[exp.Expression]:
-    return sqlglot.parse(raw, read="postgres")
+    return [cast(exp.Expression, stmt) for stmt in sqlglot.parse(raw, read="postgres") if stmt]
 
 
 def _strip_comment_only_tail(stmts: list[exp.Expression], raw: str) -> list[exp.Expression]:
@@ -61,7 +62,7 @@ def _forbidden_nodes(node: exp.Expression) -> exp.Expression | None:
     for child in node.walk():
         for forbidden in policy.FORBIDDEN_STATEMENT_NODES:
             if isinstance(child, forbidden):
-                return child
+                return cast(exp.Expression, child)
     return None
 
 
@@ -295,7 +296,7 @@ def _check_columns(node: exp.Expression) -> Verdict | None:
     try:
         qualified = qualify.qualify(
             node.copy(),
-            schema=_cte_column_schema(node),
+            schema=cast(dict[str, object], _cte_column_schema(node)),
             dialect="postgres",
             expand_stars=True,
             validate_qualify_columns=True,
@@ -433,7 +434,7 @@ def check(sql: str, cfg: GuardConfig | None = None) -> Verdict:
     try:
         tree = qualify.qualify(
             tree,
-            schema=_cte_column_schema(tree),
+            schema=cast(dict[str, object], _cte_column_schema(tree)),
             dialect="postgres",
             expand_stars=True,
             validate_qualify_columns=False,

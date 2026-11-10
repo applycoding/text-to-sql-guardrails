@@ -33,8 +33,9 @@ class OpenAICompatModel:
                 }
             ],
         }
+        base = self.base_url or ""
         req = urllib.request.Request(
-            f"{self.base_url.rstrip('/')}/v1/chat/completions",
+            f"{base.rstrip('/')}/v1/chat/completions",
             data=json.dumps(body).encode("utf-8"),
             headers={
                 "Authorization": f"Bearer {self.api_key}",
