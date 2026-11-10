@@ -165,7 +165,7 @@ def _check_tables(node: exp.Expression) -> Verdict | None:
 def _is_allowed_cast(dtype: exp.DataType) -> bool:
     base = dtype.this
     if isinstance(base, exp.DataType.Type):
-        name = base.value
+        name = str(base.value).lower()
     else:
         name = str(base).lower()
     if name not in policy.ALLOWED_CAST_TYPES:

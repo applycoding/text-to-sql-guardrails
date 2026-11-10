@@ -44,7 +44,7 @@ def test_reader_denied(
 def test_insert_read_write_acl(reader_conn: pg8000.native.Connection) -> None:
     conn = reader_conn
     conn.run("COMMIT")
-    conn.run("BEGIN")
+    conn.run("BEGIN READ WRITE")
     with pytest.raises(pg8000.native.Error) as exc:
         conn.run(INSERT_SQL)
     assert _sqlstate(exc.value) == "42501"
@@ -70,7 +70,7 @@ def test_insert_read_only(reader_conn: pg8000.native.Connection) -> None:
 def test_ddl_denied(sql: str, reader_conn: pg8000.native.Connection) -> None:
     conn = reader_conn
     conn.run("COMMIT")
-    conn.run("BEGIN")
+    conn.run("BEGIN READ WRITE")
     with pytest.raises(pg8000.native.Error) as exc:
         conn.run(sql)
     assert _sqlstate(exc.value) == "42501"
@@ -87,7 +87,7 @@ def test_ddl_denied(sql: str, reader_conn: pg8000.native.Connection) -> None:
 def test_superuser_functions_denied(sql: str, reader_conn: pg8000.native.Connection) -> None:
     conn = reader_conn
     conn.run("COMMIT")
-    conn.run("BEGIN")
+    conn.run("BEGIN READ WRITE")
     with pytest.raises(pg8000.native.Error) as exc:
         conn.run(sql)
     assert _sqlstate(exc.value) == "42501"
