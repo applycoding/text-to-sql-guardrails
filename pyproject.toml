@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "t2sql"
+version = "0.1.0"
+description = "Natural language to guarded PostgreSQL SELECT"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.13"
+dependencies = [
+    "sqlglot==30.31.0",
+    "pg8000==1.31.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.2.0",
+    "pytest-timeout==2.4.0",
+    "ruff==0.17.4",
+    "mypy==2.4.1",
+    "pip-tools==7.6.2",
+    "playwright==1.65.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+timeout = 30
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tools/mutants.py" = ["E501", "SIM"]
+"tools/freeze_eval_fixture.py" = ["I001"]
+"tests/test_attacks.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+packages = ["t2sql"]
+
+[[tool.mypy.overrides]]
+module = ["pg8000", "pg8000.*"]
+ignore_missing_imports = true

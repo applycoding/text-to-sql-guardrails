@@ -1,0 +1,234 @@
+# SPDX-License-Identifier: Apache-2.0
+name: ci
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-dev.txt
+      - run: pip install -e .
+      - run: ruff check src tests tools e2e .github
+      - run: ruff format --check src tests tools e2e .github
+      - run: mypy --strict src
+      - run: python tools/check_notice.py
+      - name: SPDX headers
+        run: |
+          missing=0
+          while IFS= read -r f; do
+            head -n1 "$f" | grep -q 'SPDX-License-Identifier: Apache-2.0' || { echo "missing SPDX: $f"; missing=1; }
+          done < <(git ls-files '*.py' '*.js' '*.sql' '*.yml' '*.html')
+          exit $missing
+      - name: LICENSE sha256
+        run: |
+          curl -fsSL https://www.apache.org/licenses/LICENSE-2.0.txt -o /tmp/apache.txt
+          echo 'cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  /tmp/apache.txt' | sha256sum -c -
+          sha256sum LICENSE | awk '{print $1}' > /tmp/local.sha
+          sha256sum /tmp/apache.txt | awk '{print $1}' > /tmp/upstream.sha
+          diff /tmp/local.sha /tmp/upstream.sha
+      - name: action pin check
+        run: |
+          set -euo pipefail
+          bad=0
+          while IFS= read -r line; do
+            if echo "$line" | grep -qvE '@[0-9a-f]{40}( |$)'; then
+              echo "unpinned uses: $line"
+              bad=1
+            fi
+          done < <(grep -hE '^\s*-?\s*uses:' .github/workflows/*.yml || true)
+          grep -q '@sha256:' .github/workflows/ci.yml || { echo 'postgres image not digest-pinned'; bad=1; }
+          exit $bad
+      - name: forbid tautology tests
+        run: |
+          set -euo pipefail
+          if grep -rnE 'assert True|pytest\.skip|pytest\.mark\.xfail|@pytest\.mark\.xfail' tests/; then
+            echo 'forbidden test pattern found'
+            exit 1
+          fi
+      - name: no API key in workflow
+        run: |
+          set -euo pipefail
+          if grep -rn 'T2SQL_LLM_API_KEY' .github/workflows/*.yml | grep -v 'grep -'; then
+            echo 'API key variable must not appear in CI workflow'
+            exit 1
+          fi
+      - name: README required sections
+        run: |
+          grep -q 'demo, deterministic offline model, not a production security boundary' README.md
+          grep -q '### Honest limits' README.md
+          grep -q '### How this was verified' README.md
+          grep -q 'REFERENCES.md' README.md
+          grep -q 'untested in CI' README.md
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.11@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
+        env:
+          POSTGRES_PASSWORD: ci_admin
+          POSTGRES_INITDB_ARGS: --locale=C --encoding=UTF8
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      T2SQL_DSN_HOST: localhost
+      T2SQL_DSN_PORT: 5432
+      T2SQL_DSN_DATABASE: postgres
+      T2SQL_DSN_ADMIN_PASSWORD: ci_admin
+      T2SQL_READER_PASSWORD: ci_reader
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-dev.txt
+      - run: pip install -e .
+      - run: |
+          for attempt in $(seq 1 30); do
+            if python -c "import pg8000.native as p; p.Connection(host='localhost', user='postgres', password='ci_admin').run('SELECT 1')"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+      - run: python -m t2sql.seed
+      - run: python -c "import pg8000.native as p; print(p.Connection(host='localhost', user='postgres', password='ci_admin').run('SELECT version()'))"
+      - name: pipeline plan metrics
+        run: |
+          python <<'PY'
+          import json
+          import os
+          import pg8000.native
+          from t2sql.guard import check
+          from t2sql.pipeline import run_sql
+          from t2sql import explain
+
+          rows = [
+              ("orders_x_items", "SELECT o.id FROM orders o, order_items i", "DRYRUN_ROWS", 192_000_000),
+              ("orders_x_customers", "SELECT o.id FROM orders o, customers c", "DRYRUN_ROWS", 8_000_000),
+              ("items_self_join", "SELECT a.order_id FROM order_items a JOIN order_items b ON a.product_id = b.product_id", "DRYRUN_ROWS", 4_800_002),
+              ("orders_x_items_count", "SELECT count(*) FROM orders o, order_items i", "DRYRUN_COST", 2_880_651),
+          ]
+          conn = pg8000.native.Connection(
+              host=os.environ.get("T2SQL_DSN_HOST", "localhost"),
+              port=int(os.environ.get("T2SQL_DSN_PORT", "5432")),
+              user="t2s_reader",
+              password=os.environ.get("T2SQL_READER_PASSWORD", "ci_reader"),
+              database=os.environ.get("T2SQL_DSN_DATABASE", "postgres"),
+          )
+          conn.run("BEGIN READ ONLY")
+          for case_id, sql, code, bound in rows:
+              r = run_sql(sql)
+              assert r.code == code, (case_id, r.code)
+              verdict = check(sql)
+              assert verdict.sql
+              raw = conn.run(f"EXPLAIN (FORMAT JSON) {verdict.sql}")
+              plan_row = raw[0][0]
+              plan_json = json.loads(plan_row) if isinstance(plan_row, str) else plan_row
+              summary = explain.evaluate(plan_json)
+              if code == "DRYRUN_ROWS":
+                  print(f"pipeline {case_id} max_rows={summary.max_plan_rows} ref={bound}")
+                  assert summary.max_plan_rows >= bound
+              else:
+                  print(f"pipeline {case_id} total_cost={summary.total_cost} ref={bound}")
+                  assert summary.total_cost >= bound
+          conn.close()
+          PY
+      - run: python tools/freeze_eval_fixture.py
+      - run: pytest -p no:cacheprovider -rA tests
+  mutants:
+    needs: test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.11@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
+        env:
+          POSTGRES_PASSWORD: ci_admin
+          POSTGRES_INITDB_ARGS: --locale=C --encoding=UTF8
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      T2SQL_DSN_HOST: localhost
+      T2SQL_DSN_PORT: 5432
+      T2SQL_DSN_DATABASE: postgres
+      T2SQL_DSN_ADMIN_PASSWORD: ci_admin
+      T2SQL_READER_PASSWORD: ci_reader
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-dev.txt
+      - run: pip install -e .
+      - run: |
+          for attempt in $(seq 1 30); do
+            if python -c "import pg8000.native as p; p.Connection(host='localhost', user='postgres', password='ci_admin').run('SELECT 1')"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+      - run: python -m t2sql.seed
+      - run: python tools/mutants.py
+  site:
+    needs: test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.11@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
+        env:
+          POSTGRES_PASSWORD: ci_admin
+          POSTGRES_INITDB_ARGS: --locale=C --encoding=UTF8
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      T2SQL_DSN_HOST: localhost
+      T2SQL_DSN_PORT: 5432
+      T2SQL_DSN_DATABASE: postgres
+      T2SQL_DSN_ADMIN_PASSWORD: ci_admin
+      T2SQL_READER_PASSWORD: ci_reader
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-dev.txt
+      - run: pip install -e .
+      - run: |
+          for attempt in $(seq 1 30); do
+            if python -c "import pg8000.native as p; p.Connection(host='localhost', user='postgres', password='ci_admin').run('SELECT 1')"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+      - run: python -m t2sql.seed
+      - run: playwright install --with-deps chromium
+      - run: python tools/build_site.py
+      - run: python tools/verify_site_pins.py
+      - run: pytest -p no:cacheprovider e2e/test_site.py
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: site
+          path: site-dist/

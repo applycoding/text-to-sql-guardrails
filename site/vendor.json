@@ -1,0 +1,15 @@
+{
+  "pyodide": {
+    "url": "https://github.com/pyodide/pyodide/releases/download/314.0.7/pyodide-core-314.0.7.tar.bz2",
+    "sha256": "2abdcc2e35208af406e07724cffa85bc582ced97e9028383ecf5462541393f95",
+    "version": "314.0.7"
+  },
+  "sqlglot_wheel": {
+    "url": "https://pypi.org/packages/py3/s/sqlglot/sqlglot-30.31.0-py3-none-any.whl",
+    "sha256": "51a876a43edecf8ee6fd4c872cf6713d899c4234256bba0be96a8c7c8d8781e8"
+  },
+  "site_files": {
+    "pyodide/pyodide-lock.json": "5dc2fc119108bc148c7457dc86e7675b5c87e1cafd420b9c34c1eaef7b36c010",
+    "pyodide/pyodide.js": "3141b814715a72e59b51b1b18b9ceae5bf19f7c852417e431bb0a34feadf825c"
+  }
+}
