@@ -40,7 +40,17 @@ async function runGuard(question, sqlText) {
   );
 }
 
+const bootPromise = boot().catch((err) => {
+  render({ code: "BOOT_ERROR", detail: String(err) });
+  throw err;
+});
+
 document.getElementById("run").addEventListener("click", async () => {
+  try {
+    await bootPromise;
+  } catch {
+    return;
+  }
   const question = document.getElementById("question").value;
   const sql = document.getElementById("sql").value;
   const result = await runGuard(question, sql);
@@ -66,5 +76,3 @@ document.querySelectorAll("#examples button").forEach((btn) => {
     }
   });
 });
-
-boot().catch((err) => render({ code: "BOOT_ERROR", detail: String(err) }));

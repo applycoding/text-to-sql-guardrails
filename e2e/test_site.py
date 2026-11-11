@@ -28,6 +28,7 @@ def http_server() -> str:
     proc.wait(timeout=10)
 
 
+@pytest.mark.timeout(180)
 def test_banner_and_basic_flow(http_server: str) -> None:
     requests_outside: list[str] = []
     with sync_playwright() as p:
@@ -41,11 +42,17 @@ def test_banner_and_basic_flow(http_server: str) -> None:
         page.on("request", on_request)
         page.goto(f"{http_server}/index.html", wait_until="networkidle", timeout=120_000)
         assert BANNER in page.content()
+        page.wait_for_function("() => window.pyodide != null", timeout=120_000)
         page.click('button[data-q="top 3 products by revenue"]')
         page.click("#run")
         page.wait_for_function(
-            "() => { const t = document.querySelector('#out')?.textContent || ''; return t.includes('OK') || t.includes('BOOT_ERROR'); }",
-            timeout=120_000,
+            "() => (document.querySelector('#out')?.textContent || '').includes('\"code\"')",
+            timeout=60_000,
+        )
+        page.wait_for_function(
+            "() => { const t = document.querySelector('#out')?.textContent || '';"
+            " return t.includes('\"code\": \"OK\"') || t.includes('BOOT_ERROR'); }",
+            timeout=60_000,
         )
         text = page.locator("#out").inner_text()
         payload = json.loads(text)
