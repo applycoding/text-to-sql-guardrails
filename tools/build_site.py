@@ -71,11 +71,11 @@ def _precomputed() -> dict[str, object]:
     return {"seed_hash": schema, "rows": rows_map}
 
 
-def _corpus() -> dict[str, str]:
+def _corpus() -> dict[str, dict[str, str]]:
     from t2sql.guard import check
     from tests.test_attacks import ATTACKS
 
-    return {case_id: check(sql).code for case_id, sql, *_ in ATTACKS}
+    return {case_id: {"sql": sql, "code": check(sql).code} for case_id, sql, *_ in ATTACKS}
 
 
 def main() -> None:

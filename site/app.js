@@ -2,21 +2,24 @@
 const BANNER = "demo, deterministic offline model, not a production security boundary";
 
 let precomputed = {};
-let pyodideReady = null;
+let corpusExpected = {};
 
 async function boot() {
   if (typeof loadPyodide === "undefined") {
-    return;
+    throw new Error("loadPyodide is not defined");
   }
-  pyodideReady = loadPyodide({ indexURL: "./pyodide/" });
-  const pyodide = await pyodideReady;
+  const pyodide = await loadPyodide({ indexURL: "./pyodide/" });
+  const wheelBuf = await fetch("sqlglot-30.31.0-py3-none-any.whl").then((r) => r.arrayBuffer());
+  pyodide.FS.writeFile("sqlglot-30.31.0-py3-none-any.whl", new Uint8Array(wheelBuf));
   await pyodide.unpackArchive("sqlglot-30.31.0-py3-none-any.whl", "wheel");
   for (const file of ["guard.py", "policy.py", "model.py"]) {
     const src = await fetch(`python/${file}`).then((r) => r.text());
     pyodide.FS.writeFile(file, src);
   }
   precomputed = await fetch("precomputed.json").then((r) => r.json());
+  corpusExpected = await fetch("corpus_expected.json").then((r) => r.json());
   window.pyodide = pyodide;
+  window.pyodideBoot = "ready";
 }
 
 function render(payload) {
@@ -40,10 +43,25 @@ async function runGuard(question, sqlText) {
   );
 }
 
+async function runCorpusCheck() {
+  await bootPromise;
+  const py = window.pyodide;
+  const out = {};
+  for (const [caseId, entry] of Object.entries(corpusExpected)) {
+    py.globals.set("input_sql", entry.sql);
+    const code = await py.runPythonAsync("from guard import check\ncheck(input_sql).code");
+    out[caseId] = code;
+  }
+  return out;
+}
+
 const bootPromise = boot().catch((err) => {
+  window.pyodideBoot = "error";
   render({ code: "BOOT_ERROR", detail: String(err) });
   throw err;
 });
+
+window.runCorpusCheck = runCorpusCheck;
 
 document.getElementById("run").addEventListener("click", async () => {
   try {
