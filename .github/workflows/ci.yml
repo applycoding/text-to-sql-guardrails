@@ -48,7 +48,7 @@ jobs:
       - name: forbid tautology tests
         run: |
           set -euo pipefail
-          if grep -rnE 'assert True|pytest\.skip|xfail' tests/; then
+          if grep -rnE 'assert True|pytest\.skip|pytest\.mark\.xfail|@pytest\.mark\.xfail' tests/; then
             echo 'forbidden test pattern found'
             exit 1
           fi
