@@ -33,9 +33,9 @@ MUTANTS: list[Mutant] = [
     ),
     Mutant(
         "M2",
-        "src/t2sql/policy.py",
-        "        exp.Command,\n",
-        "",
+        "src/t2sql/guard.py",
+        "        for forbidden in policy.FORBIDDEN_STATEMENT_NODES:\n            if isinstance(child, forbidden):\n                return cast(exp.Expression, child)\n",
+        "        for forbidden in policy.FORBIDDEN_STATEMENT_NODES:\n            if forbidden is exp.Command:\n                continue\n            if isinstance(child, forbidden):\n                return cast(exp.Expression, child)\n",
         "tests/test_mutant_targets.py::test_m2_do_block",
     ),
     Mutant(
