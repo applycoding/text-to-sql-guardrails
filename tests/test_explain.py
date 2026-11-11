@@ -87,10 +87,7 @@ PIPELINE_ROWS = [
     ),
     (
         "items_self_join",
-        (
-            "SELECT a.order_id FROM order_items a "
-            "JOIN order_items b ON a.product_id = b.product_id"
-        ),
+        ("SELECT a.order_id FROM order_items a JOIN order_items b ON a.product_id = b.product_id"),
         "DRYRUN_ROWS",
         4_800_002,
     ),

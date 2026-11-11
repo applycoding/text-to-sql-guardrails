@@ -58,9 +58,7 @@ def main() -> int:
     required = set(locked)
     missing = [name for name in sorted(required) if name not in notice_entries]
     extra = [
-        name
-        for name in sorted(notice_entries)
-        if name not in required and name not in STATIC_OK
+        name for name in sorted(notice_entries) if name not in required and name not in STATIC_OK
     ]
     wrong_version = [
         f"{name}: notice={notice_entries.get(name)} lock={locked[name]}"

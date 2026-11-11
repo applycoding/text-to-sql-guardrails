@@ -298,8 +298,10 @@ def _base_tables_in_query(node: exp.Expression) -> set[str]:
         if lname in policy.ALLOWED_TABLES:
             names.add(lname)
         alias = tbl.alias
-        alias_name = alias.lower() if isinstance(alias, str) else (
-            alias.this.name.lower() if alias and alias.this else ""
+        alias_name = (
+            alias.lower()
+            if isinstance(alias, str)
+            else (alias.this.name.lower() if alias and alias.this else "")
         )
         if alias_name and alias_name in cte:
             continue
@@ -324,8 +326,10 @@ def _resolve_column_table(col: exp.Column, node: exp.Expression) -> set[str]:
             return {key}
         for tbl in node.find_all(exp.Table):
             alias = tbl.alias
-            alias_name = alias.lower() if isinstance(alias, str) else (
-                alias.this.name.lower() if alias and alias.this else ""
+            alias_name = (
+                alias.lower()
+                if isinstance(alias, str)
+                else (alias.this.name.lower() if alias and alias.this else "")
             )
             if alias_name == key:
                 lname = (tbl.name or "").lower()
@@ -437,9 +441,9 @@ def _check_limit(node: exp.Expression, cfg: GuardConfig) -> tuple[Verdict | None
 
 def _stable_select_columns(sel: exp.Select) -> None:
     expressions = list(sel.expressions)
-    expressions.sort(key=lambda e: (
-        (e.alias_or_name or "").lower() if hasattr(e, "alias_or_name") else str(e)
-    ))
+    expressions.sort(
+        key=lambda e: (e.alias_or_name or "").lower() if hasattr(e, "alias_or_name") else str(e)
+    )
     sel.set("expressions", expressions)
 
 

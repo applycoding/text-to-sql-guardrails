@@ -78,12 +78,12 @@ MUTANTS: list[Mutant] = [
         (
             Patch(
                 "src/t2sql/guard.py",
-                '            if schema_part:\n'
+                "            if schema_part:\n"
                 "                if schema_quoted:\n"
                 "                    schema_ok = schema_part == policy.ALLOWED_SCHEMA\n"
                 "                else:\n"
                 "                    schema_ok = schema_part.lower() == policy.ALLOWED_SCHEMA\n"
-                '                if not schema_ok:\n'
+                "                if not schema_ok:\n"
                 '                    return _refuse("TABLE_NOT_ALLOWED", f"{schema_part}.{name}")\n',
                 "",
             ),
@@ -338,7 +338,9 @@ def main() -> None:
             if code != 1:
                 raise SystemExit(f"{mutant.mutant_id} kill failed: exit={code} failed={failed}")
             if set(failed) != {mutant.target_test}:
-                raise SystemExit(f"{mutant.mutant_id} kill failed: exit={code} failed={set(failed)}")
+                raise SystemExit(
+                    f"{mutant.mutant_id} kill failed: exit={code} failed={set(failed)}"
+                )
             for nodeid, err in failed.items():
                 allowed = err.startswith(("AssertionError", "assert"))
                 if not allowed:

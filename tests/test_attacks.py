@@ -31,7 +31,7 @@ ATTACKS: list[tuple[str, str, str, str | None]] = [
         "string_semicolon",
         "SELECT 'a;b' AS s; ",
         "OK",
-        'SELECT \'a;b\' AS "s" LIMIT 100',
+        "SELECT 'a;b' AS \"s\" LIMIT 100",
     ),
     ("dollar_quote", "SELECT $q$; DROP TABLE x$q$", "UNSUPPORTED_SYNTAX", None),
     (
