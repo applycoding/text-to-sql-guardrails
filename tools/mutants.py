@@ -95,10 +95,10 @@ MUTANTS: list[Mutant] = [
         (
             Patch(
                 "src/t2sql/guard.py",
-                "        if isinstance(child, exp.Table):\n"
                 "            if isinstance(child.this, (exp.Anonymous, exp.ExplodingGenerateSeries)):\n"
                 '                return _refuse("FUNCTION_NOT_ALLOWED", "function relation")\n',
-                "        if isinstance(child, exp.Table):\n            pass\n",
+                "            if isinstance(child.this, (exp.Anonymous, exp.ExplodingGenerateSeries)):\n"
+                "                continue\n",
             ),
             Patch(
                 "src/t2sql/guard.py",

@@ -75,3 +75,25 @@ def test_cli_bad_model_stderr() -> None:
     proc = _run(["ask", "hello"], {"T2SQL_MODEL": "invalid"})
     assert proc.returncode == 2
     assert "unknown T2SQL_MODEL" in proc.stderr
+
+
+_TIMEOUT_SQL = (
+    "SELECT sum(o1.id::numeric * o2.id::numeric) "
+    "FROM orders o1, orders o2, orders o3, order_items i"
+)
+
+
+def test_cli_run_db_error(db_seeded: None) -> None:
+    proc = _run(["run", "--sql", "SELECT 1/0"])
+    assert proc.returncode == 3
+    payload = _one_json(proc.stdout)
+    assert payload["code"] == "DB_ERROR"
+    assert payload["detail"].startswith("22012 ")
+
+
+def test_cli_run_exec_timeout(db_seeded: None) -> None:
+    proc = _run(["run", "--sql", _TIMEOUT_SQL], {"T2SQL_DRY_RUN": "0"})
+    assert proc.returncode == 3
+    payload = _one_json(proc.stdout)
+    assert payload["code"] == "EXEC_TIMEOUT"
+    assert payload["detail"].startswith("57014 ")

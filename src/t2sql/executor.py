@@ -17,7 +17,17 @@ from t2sql.guard import GuardConfig
 TIMEOUT_SQL = f"SET LOCAL statement_timeout = '{policy.STATEMENT_TIMEOUT_MS // 1000}s'"
 
 RUN_COUNT = 0
+EXPLAIN_COUNT = 0
+EXECUTE_COUNT = 0
 LAST_SQL: str | None = None
+
+
+def reset_counters() -> None:
+    global RUN_COUNT, EXPLAIN_COUNT, EXECUTE_COUNT, LAST_SQL
+    RUN_COUNT = 0
+    EXPLAIN_COUNT = 0
+    EXECUTE_COUNT = 0
+    LAST_SQL = None
 
 
 @dataclass(frozen=True)
@@ -50,7 +60,7 @@ def _sqlstate_and_message(exc: pg8000.native.Error) -> tuple[str, str]:
 
 
 def run(sql: str, cfg: GuardConfig | None = None) -> ExecResult:
-    global RUN_COUNT, LAST_SQL
+    global RUN_COUNT, EXPLAIN_COUNT, EXECUTE_COUNT, LAST_SQL
     if cfg is None:
         cfg = GuardConfig()
     RUN_COUNT += 1
@@ -61,6 +71,7 @@ def run(sql: str, cfg: GuardConfig | None = None) -> ExecResult:
         conn.run("BEGIN READ ONLY")
         conn.run(TIMEOUT_SQL)
         if cfg.dry_run:
+            EXPLAIN_COUNT += 1
             raw = conn.run(f"EXPLAIN (FORMAT JSON) {sql}")
             plan_row = raw[0][0] if raw else None
             if plan_row is None:
@@ -76,6 +87,7 @@ def run(sql: str, cfg: GuardConfig | None = None) -> ExecResult:
             ok, code = explain.dry_run_verdict(summary)
             if not ok:
                 return ExecResult(False, code, "", sql, None)
+        EXECUTE_COUNT += 1
         fetched = conn.run(sql)
         rows: list[list[Any]] = []
         for row in fetched:

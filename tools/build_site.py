@@ -10,6 +10,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +21,8 @@ VENDOR = json.loads((SRC_SITE / "vendor.json").read_text(encoding="utf-8"))
 
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
+
+PYODIDE_IGNORE = shutil.ignore_patterns("python.exe", "python.bat", "*.exe", "*.bat")
 
 
 def _sha256(path: Path) -> str:
@@ -81,21 +84,28 @@ def _corpus() -> dict[str, dict[str, str]]:
     return {case_id: {"sql": sql, "code": check(sql).code} for case_id, sql, *_ in ATTACKS}
 
 
-def _write_licenses(out: Path) -> None:
+def _read_sqlglot_license(whl_path: Path) -> str:
+    with zipfile.ZipFile(whl_path, "r") as zf:
+        for name in zf.namelist():
+            if name.endswith("/LICENSE") or name.endswith("LICENSE.txt"):
+                return zf.read(name).decode("utf-8", errors="replace")
+    raise SystemExit("sqlglot license not found in wheel")
+
+
+def _fetch_license_text(url: str) -> str:
+    with urllib.request.urlopen(url, timeout=120) as resp:
+        return resp.read().decode("utf-8", errors="replace")
+
+
+def _write_licenses(out: Path, whl_path: Path) -> None:
     licenses = out / "licenses"
     licenses.mkdir(parents=True, exist_ok=True)
-    (licenses / "sqlglot-MIT.txt").write_text(
-        "sqlglot 30.31.0\nMIT License\nCopyright (c) Toby Mao\n",
-        encoding="utf-8",
-    )
-    (licenses / "pyodide-MPL-2.0.txt").write_text(
-        "Pyodide 314.0.7 - MPL-2.0 (includes CPython PSF-2.0 and Emscripten runtime code).\n",
-        encoding="utf-8",
-    )
-    (licenses / "cpython-PSF-2.0.txt").write_text(
-        "CPython 3.14 as bundled in Pyodide — PSF License Agreement\n",
-        encoding="utf-8",
-    )
+    (licenses / "sqlglot-MIT.txt").write_text(_read_sqlglot_license(whl_path), encoding="utf-8")
+    tag = pyodide["version"] if (pyodide := VENDOR["pyodide"]).get("version") else "314.0.7"
+    mpl = _fetch_license_text(f"https://raw.githubusercontent.com/pyodide/pyodide/{tag}/LICENSE")
+    psf = _fetch_license_text("https://raw.githubusercontent.com/python/cpython/v3.14.0/LICENSE")
+    (licenses / "pyodide-MPL-2.0.txt").write_text(mpl, encoding="utf-8")
+    (licenses / "cpython-PSF-2.0.txt").write_text(psf, encoding="utf-8")
 
 
 def main() -> None:
@@ -115,16 +125,24 @@ def main() -> None:
         nested = extract_root / "pyodide"
         if not nested.exists():
             raise SystemExit("missing pyodide directory in vendor archive")
-        shutil.copytree(nested, OUT / "pyodide", dirs_exist_ok=True)
+        shutil.copytree(nested, OUT / "pyodide", dirs_exist_ok=True, ignore=PYODIDE_IGNORE)
 
     shutil.copy(whl, OUT / "sqlglot-30.31.0-py3-none-any.whl")
-    for name in ("index.html", "style.css", "app.js", "vendor.json"):
+    for name in ("index.html", "style.css", "app.js"):
         shutil.copy(SRC_SITE / name, OUT / name)
 
     _copy_guard_sources(OUT / "python")
-    _write_licenses(OUT)
+    _write_licenses(OUT, whl)
     (OUT / "precomputed.json").write_text(json.dumps(_precomputed(), default=str), encoding="utf-8")
     (OUT / "corpus_expected.json").write_text(json.dumps(_corpus()), encoding="utf-8")
+
+    vendor_out = dict(VENDOR)
+    vendor_out["site_files"] = {
+        "pyodide/pyodide-lock.json": _sha256(OUT / "pyodide" / "pyodide-lock.json"),
+        "pyodide/pyodide.js": _sha256(OUT / "pyodide" / "pyodide.js"),
+        "sqlglot-30.31.0-py3-none-any.whl": _sha256(OUT / "sqlglot-30.31.0-py3-none-any.whl"),
+    }
+    (OUT / "vendor.json").write_text(json.dumps(vendor_out, indent=2) + "\n", encoding="utf-8")
 
     archive.unlink(missing_ok=True)
     whl.unlink(missing_ok=True)

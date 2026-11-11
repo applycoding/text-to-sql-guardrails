@@ -117,9 +117,10 @@ def test_live_bounds(
     assert verdict.sql
     conn = pg8000.native.Connection(
         host=os.environ.get("T2SQL_DSN_HOST", "localhost"),
+        port=int(os.environ.get("T2SQL_DSN_PORT", "5432")),
         user="t2s_reader",
         password=os.environ.get("T2SQL_READER_PASSWORD", "ci_reader"),
-        database="postgres",
+        database=os.environ.get("T2SQL_DSN_DATABASE", "postgres"),
     )
     conn.run("BEGIN READ ONLY")
     raw = conn.run(f"EXPLAIN (FORMAT JSON) {verdict.sql}")
@@ -136,6 +137,8 @@ def test_live_bounds(
 
 
 def test_eval_questions_within_plan_caps(db_seeded: None) -> None:
+    import os
+
     data = json.loads(FIXTURE.read_text(encoding="utf-8"))
     model = StubModel()
     max_cost = 0.0
@@ -150,10 +153,11 @@ def test_eval_questions_within_plan_caps(db_seeded: None) -> None:
         import pg8000.native
 
         conn = pg8000.native.Connection(
-            host="localhost",
+            host=os.environ.get("T2SQL_DSN_HOST", "localhost"),
+            port=int(os.environ.get("T2SQL_DSN_PORT", "5432")),
             user="t2s_reader",
-            password="ci_reader",
-            database="postgres",
+            password=os.environ.get("T2SQL_READER_PASSWORD", "ci_reader"),
+            database=os.environ.get("T2SQL_DSN_DATABASE", "postgres"),
         )
         conn.run("BEGIN READ ONLY")
         raw = conn.run(f"EXPLAIN (FORMAT JSON) {verdict.sql}")

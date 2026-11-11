@@ -420,7 +420,7 @@ The build fills the full frozen rows from a run against the CI database and chec
 The throwaway prototype ran against local PostgreSQL 17.11 (Debian build), sqlglot 30.31.0, pg8000 1.31.6 and Python 3.13. These values were measured:
 
 - **Attack rows.** Every row in section 9 returned the listed code. The tokenizer handles nested comments as PostgreSQL does: `SELECT 1 /* nested /* c */ ; DROP */` is one statement.
-- **Legitimate dry runs.** The highest values for the eval queries were cost 1227.74 and max plan rows 24000. The cross-join attacks reached 1.73e6 to 1.92e8 rows. The bounds are 50000 for cost and 1000000 for rows, so legitimate plans are at least 40× below both bounds.
+- **Legitimate dry runs.** The highest values for the eval queries were cost 752.74 and max plan rows 24000. The cross-join attacks reached 1.73e6 to 1.92e8 rows. The bounds are 50000 for cost and 1000000 for rows, so legitimate plans are at least 40× below both bounds.
 - **DB layer.** Every SQLSTATE in section 11 was observed. A real SCRAM-SHA-256 login worked with pg8000, and a wrong password gave 28P01.
   - `CREATE TEMP` succeeded until `REVOKE TEMP ... FROM PUBLIC` was added. That line is now in section 7.
 - **Mutation runner.** The baseline was green, and M1 to M9 were each killed with exactly their target failing.

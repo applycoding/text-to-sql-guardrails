@@ -155,7 +155,7 @@ def test_role_attributes(reader_conn: pg8000.native.Connection) -> None:
 def test_wrong_password(db_seeded: None) -> None:
     import os
 
-    with pytest.raises(pg8000.native.Error):
+    with pytest.raises(pg8000.native.Error) as exc_info:
         pg8000.native.Connection(
             host=os.environ.get("T2SQL_DSN_HOST", "localhost"),
             port=int(os.environ.get("T2SQL_DSN_PORT", "5432")),
@@ -163,6 +163,9 @@ def test_wrong_password(db_seeded: None) -> None:
             user="t2s_reader",
             password="wrong-password",
         )
+    err = exc_info.value
+    assert err.args and isinstance(err.args[0], dict)
+    assert err.args[0].get("C") == "28P01"
 
 
 def test_orders_count_admin(admin_conn: pg8000.native.Connection) -> None:

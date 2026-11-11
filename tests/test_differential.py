@@ -25,7 +25,7 @@ def test_reparse_roundtrip() -> None:
         ("SELECT * FROM orders -- trailing", "SELECT * FROM orders"),
         ("SELECT 'a;b' AS s; ", "SELECT 'a;b' AS s"),
         ("SELECT 1 /* nested /* c */ ; DROP */", "SELECT 1"),
-        ("select * from ORDERS", "select * from ORDERS"),
+        ("select * from ORDERS", "SELECT * FROM orders"),
     ],
 )
 def test_benign_same_rows(variant: str, plain: str, db_seeded: None) -> None:

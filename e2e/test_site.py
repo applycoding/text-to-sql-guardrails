@@ -19,6 +19,12 @@ BASE_PATH = "/text-to-sql-guardrails"
 BANNER = "demo, deterministic offline model, not a production security boundary"
 NOTE = "AST checks ran in your browser; database checks ran in CI"
 
+TOP3_GOLD = [
+    ["Product 84", 6454206],
+    ["Product 80", 6171652],
+    ["Product 76", 5852142],
+]
+
 
 @pytest.fixture(scope="module")
 def http_server() -> str:
@@ -79,7 +85,6 @@ def _run_guard(page: Page) -> dict:
 
 @pytest.mark.timeout(300)
 def test_banner_and_basic_flow(http_server: str) -> None:
-    pre = json.loads((SITE / "precomputed.json").read_text(encoding="utf-8"))
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
@@ -91,14 +96,7 @@ def test_banner_and_basic_flow(http_server: str) -> None:
         assert payload.get("sql")
         rows = payload.get("rows")
         assert rows is not None
-        key = "|".join(
-            [
-                "top 3 products by revenue",
-                payload["sql"],
-                pre["seed_hash"],
-            ]
-        )
-        assert rows == pre["rows"][key]
+        assert rows == TOP3_GOLD
         assert outside == []
         browser.close()
 
@@ -150,9 +148,16 @@ def test_corpus_parity_with_cpython(http_server: str) -> None:
 
 
 def test_vendor_checksums() -> None:
-    vendor = json.loads((ROOT / "site" / "vendor.json").read_text(encoding="utf-8"))
+    vendor = json.loads((SITE / "vendor.json").read_text(encoding="utf-8"))
+    assert vendor["pyodide"]["sha256"]
     wheel = SITE / "sqlglot-30.31.0-py3-none-any.whl"
-    assert _sha256(wheel) == vendor["sqlglot_wheel"]["sha256"]
-    lock = SITE / "pyodide" / "pyodide-lock.json"
-    assert lock.stat().st_size > 0
-    assert (SITE / "pyodide" / "pyodide.js").stat().st_size > 0
+    expected = vendor["site_files"]
+    assert _sha256(wheel) == expected["sqlglot-30.31.0-py3-none-any.whl"]
+    assert _sha256(SITE / "pyodide" / "pyodide-lock.json") == expected["pyodide/pyodide-lock.json"]
+    assert _sha256(SITE / "pyodide" / "pyodide.js") == expected["pyodide/pyodide.js"]
+
+
+def test_site_has_no_windows_launchers() -> None:
+    for path in SITE.rglob("*"):
+        if path.is_file():
+            assert path.suffix.lower() not in {".exe", ".bat"}, path

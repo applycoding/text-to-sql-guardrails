@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Any
 
-from t2sql.guard import check
+from t2sql.guard import GuardConfig, check
 from t2sql.model import make_model
 from t2sql.pipeline import run_question, run_sql
 
@@ -61,7 +62,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if verdict.ok else 3
 
     if args.command == "run":
-        result = run_sql(args.sql)
+        dry_run = os.environ.get("T2SQL_DRY_RUN", "1") != "0"
+        result = run_sql(args.sql, GuardConfig(dry_run=dry_run))
         payload = {
             "code": result.code,
             "detail": result.detail,

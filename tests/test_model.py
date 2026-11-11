@@ -62,11 +62,23 @@ def test_socket_guard_blocks_other_hosts() -> None:
 
 
 def test_openai_adapter_to_sql_blocked() -> None:
+    import urllib.request
+
     os.environ["T2SQL_MODEL"] = "openai-compatible"
     os.environ["T2SQL_LLM_BASE_URL"] = "http://93.184.216.34"
     os.environ["T2SQL_LLM_API_KEY"] = "x"
     os.environ["T2SQL_LLM_MODEL"] = "x"
     from t2sql.adapters.openai_compat import OpenAICompatModel
 
+    with pytest.raises(OSError):
+        urllib.request.urlopen(
+            urllib.request.Request(
+                "http://93.184.216.34/v1/chat/completions",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            ),
+            timeout=1,
+        )
     model = OpenAICompatModel()
     assert model.to_sql("hello") is None

@@ -12,8 +12,7 @@ from t2sql.guard import GuardConfig
 
 
 def _reset() -> None:
-    executor.RUN_COUNT = 0
-    executor.LAST_SQL = None
+    executor.reset_counters()
 
 
 def test_exec_timeout(db_seeded: None) -> None:

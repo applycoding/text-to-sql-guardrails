@@ -107,17 +107,43 @@ jobs:
       - name: pipeline plan metrics
         run: |
           python <<'PY'
+          import json
+          import os
+          import pg8000.native
+          from t2sql.guard import check
           from t2sql.pipeline import run_sql
+          from t2sql import explain
+
           rows = [
               ("orders_x_items", "SELECT o.id FROM orders o, order_items i", "DRYRUN_ROWS", 192_000_000),
               ("orders_x_customers", "SELECT o.id FROM orders o, customers c", "DRYRUN_ROWS", 8_000_000),
               ("items_self_join", "SELECT a.order_id FROM order_items a JOIN order_items b ON a.product_id = b.product_id", "DRYRUN_ROWS", 4_800_002),
               ("orders_x_items_count", "SELECT count(*) FROM orders o, order_items i", "DRYRUN_COST", 2_880_651),
           ]
+          conn = pg8000.native.Connection(
+              host=os.environ.get("T2SQL_DSN_HOST", "localhost"),
+              port=int(os.environ.get("T2SQL_DSN_PORT", "5432")),
+              user="t2s_reader",
+              password=os.environ.get("T2SQL_READER_PASSWORD", "ci_reader"),
+              database=os.environ.get("T2SQL_DSN_DATABASE", "postgres"),
+          )
+          conn.run("BEGIN READ ONLY")
           for case_id, sql, code, bound in rows:
               r = run_sql(sql)
               assert r.code == code, (case_id, r.code)
-              print(f"pipeline {case_id} code={r.code} bound_ref={bound}")
+              verdict = check(sql)
+              assert verdict.sql
+              raw = conn.run(f"EXPLAIN (FORMAT JSON) {verdict.sql}")
+              plan_row = raw[0][0]
+              plan_json = json.loads(plan_row) if isinstance(plan_row, str) else plan_row
+              summary = explain.evaluate(plan_json)
+              if code == "DRYRUN_ROWS":
+                  print(f"pipeline {case_id} max_rows={summary.max_plan_rows} ref={bound}")
+                  assert summary.max_plan_rows >= bound
+              else:
+                  print(f"pipeline {case_id} total_cost={summary.total_cost} ref={bound}")
+                  assert summary.total_cost >= bound
+          conn.close()
           PY
       - run: python tools/freeze_eval_fixture.py
       - run: pytest -p no:cacheprovider -rA tests
