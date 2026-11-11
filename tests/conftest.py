@@ -15,14 +15,27 @@ ALLOWED_HOST = os.environ.get("T2SQL_DSN_HOST", "localhost")
 ALLOWED_PORT = int(os.environ.get("T2SQL_DSN_PORT", "5432"))
 
 
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    _ = config
+    for item in items:
+        if item.get_closest_marker("skip") is None:
+            continue
+        item.own_markers = [mark for mark in item.own_markers if mark.name != "skip"]
+
+        def _fail() -> None:
+            raise AssertionError("test skip is forbidden")
+
+        item.obj = _fail
+
+
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[Any]) -> Iterator[None]:
     outcome = yield
     rep = outcome.get_result()
     if rep.skipped:
         rep.outcome = "failed"
-        rep.wasxfail = "forbidden skip"
-    if hasattr(rep, "wasxfail") and rep.wasxfail and rep.passed:
+        rep.longrepr = "test skip is forbidden"
+    if rep.passed and getattr(rep, "wasxfail", None):
         rep.outcome = "failed"
 
 
