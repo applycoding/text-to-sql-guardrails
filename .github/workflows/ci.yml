@@ -55,7 +55,7 @@ jobs:
       - name: no API key in workflow
         run: |
           set -euo pipefail
-          if grep -n 'T2SQL_LLM_API_KEY' .github/workflows/ci.yml; then
+          if grep -rn 'T2SQL_LLM_API_KEY' .github/workflows/*.yml | grep -v 'grep -'; then
             echo 'API key variable must not appear in CI workflow'
             exit 1
           fi
