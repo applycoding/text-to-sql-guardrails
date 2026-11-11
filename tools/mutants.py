@@ -81,7 +81,8 @@ MUTANTS: list[Mutant] = [
     Mutant(
         "M7",
         "src/t2sql/guard.py",
-        "    if cfg.limit:\n        out = _apply_limit(out)\n",
+        "            if val > policy.MAX_LIMIT:\n"
+        '                sel.set("limit", exp.Limit(expression=exp.Literal.number(policy.MAX_LIMIT)))\n',
         "",
         "tests/test_mutant_targets.py::test_m7_limit_clamp",
     ),

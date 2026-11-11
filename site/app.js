@@ -9,8 +9,6 @@ async function boot() {
     throw new Error("loadPyodide is not defined");
   }
   const pyodide = await loadPyodide({ indexURL: "./pyodide/" });
-  const wheelBuf = await fetch("sqlglot-30.31.0-py3-none-any.whl").then((r) => r.arrayBuffer());
-  pyodide.FS.writeFile("sqlglot-30.31.0-py3-none-any.whl", new Uint8Array(wheelBuf));
   await pyodide.unpackArchive("sqlglot-30.31.0-py3-none-any.whl", "wheel");
   for (const file of ["guard.py", "policy.py", "model.py"]) {
     const src = await fetch(`python/${file}`).then((r) => r.text());
