@@ -226,6 +226,7 @@ jobs:
       - run: python -m t2sql.seed
       - run: playwright install --with-deps chromium
       - run: python tools/build_site.py
+      - run: python tools/verify_site_pins.py
       - run: pytest -p no:cacheprovider e2e/test_site.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:

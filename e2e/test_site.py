@@ -147,14 +147,38 @@ def test_corpus_parity_with_cpython(http_server: str) -> None:
     assert mismatches == [], "\n".join(mismatches)
 
 
+COMMITTED_VENDOR = ROOT / "site" / "vendor.json"
+
+
 def test_vendor_checksums() -> None:
-    vendor = json.loads((SITE / "vendor.json").read_text(encoding="utf-8"))
-    assert vendor["pyodide"]["sha256"]
-    wheel = SITE / "sqlglot-30.31.0-py3-none-any.whl"
+    vendor = json.loads(COMMITTED_VENDOR.read_text(encoding="utf-8"))
     expected = vendor["site_files"]
-    assert _sha256(wheel) == expected["sqlglot-30.31.0-py3-none-any.whl"]
     assert _sha256(SITE / "pyodide" / "pyodide-lock.json") == expected["pyodide/pyodide-lock.json"]
     assert _sha256(SITE / "pyodide" / "pyodide.js") == expected["pyodide/pyodide.js"]
+    wheel = SITE / "sqlglot-30.31.0-py3-none-any.whl"
+    assert _sha256(wheel) == vendor["sqlglot_wheel"]["sha256"]
+
+
+def test_vendor_pin_verification_rejects_tamper() -> None:
+    import shutil
+    import subprocess
+    import sys
+    import tempfile
+
+    verify = ROOT / "tools" / "verify_site_pins.py"
+    with tempfile.TemporaryDirectory() as tmpdir:
+        copy_root = Path(tmpdir) / "copy"
+        shutil.copytree(SITE, copy_root)
+        js = copy_root / "pyodide" / "pyodide.js"
+        js.write_bytes(js.read_bytes() + b"\n")
+        proc = subprocess.run(
+            [sys.executable, str(verify), str(copy_root), str(COMMITTED_VENDOR)],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+        assert proc.returncode != 0
+        assert "pin mismatch" in proc.stdout + proc.stderr
 
 
 def test_site_has_no_windows_launchers() -> None:

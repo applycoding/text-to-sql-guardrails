@@ -128,7 +128,7 @@ def main() -> None:
         shutil.copytree(nested, OUT / "pyodide", dirs_exist_ok=True, ignore=PYODIDE_IGNORE)
 
     shutil.copy(whl, OUT / "sqlglot-30.31.0-py3-none-any.whl")
-    for name in ("index.html", "style.css", "app.js"):
+    for name in ("index.html", "style.css", "app.js", "vendor.json"):
         shutil.copy(SRC_SITE / name, OUT / name)
 
     _copy_guard_sources(OUT / "python")
@@ -136,13 +136,9 @@ def main() -> None:
     (OUT / "precomputed.json").write_text(json.dumps(_precomputed(), default=str), encoding="utf-8")
     (OUT / "corpus_expected.json").write_text(json.dumps(_corpus()), encoding="utf-8")
 
-    vendor_out = dict(VENDOR)
-    vendor_out["site_files"] = {
-        "pyodide/pyodide-lock.json": _sha256(OUT / "pyodide" / "pyodide-lock.json"),
-        "pyodide/pyodide.js": _sha256(OUT / "pyodide" / "pyodide.js"),
-        "sqlglot-30.31.0-py3-none-any.whl": _sha256(OUT / "sqlglot-30.31.0-py3-none-any.whl"),
-    }
-    (OUT / "vendor.json").write_text(json.dumps(vendor_out, indent=2) + "\n", encoding="utf-8")
+    from tools.verify_site_pins import verify_site_dist
+
+    verify_site_dist(OUT, SRC_SITE / "vendor.json")
 
     archive.unlink(missing_ok=True)
     whl.unlink(missing_ok=True)
