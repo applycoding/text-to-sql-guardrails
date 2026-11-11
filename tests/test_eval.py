@@ -18,7 +18,16 @@ def _admin_rows(sql: str, admin_conn: pg8000.native.Connection) -> list[list[obj
     if not sql:
         return []
     admin_conn.run("SET search_path TO shop, public")
-    return [list(row) for row in admin_conn.run(sql)]
+    rows: list[list[object]] = []
+    for row in admin_conn.run(sql):
+        cells: list[object] = []
+        for cell in row:
+            if hasattr(cell, "isoformat"):
+                cells.append(cell.isoformat())
+            else:
+                cells.append(cell)
+        rows.append(cells)
+    return rows
 
 
 def test_eval_regression(db_seeded: None, admin_conn: pg8000.native.Connection) -> None:
