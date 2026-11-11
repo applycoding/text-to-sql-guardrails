@@ -125,8 +125,69 @@ MUTANTS: list[Mutant] = [
     Mutant(
         "M12",
         "src/t2sql/guard.py",
-        '        if isinstance(child, (exp.Binary, exp.Unary)) and cls not in policy.STRUCTURAL_NODES:\n            return _refuse("FUNCTION_NOT_ALLOWED", cls.__name__)\n',
-        "",
+        "        if isinstance(child, (exp.Binary, exp.Unary)) and cls not in policy.STRUCTURAL_NODES:\n"
+        '            return _refuse("FUNCTION_NOT_ALLOWED", cls.__name__)\n'
+        "        if isinstance(child, exp.Anonymous):\n"
+        '            return _refuse("FUNCTION_NOT_ALLOWED", child.name or cls.__name__)\n'
+        "        refuse_types = (\n"
+        "            exp.Window,\n"
+        "            exp.Filter,\n"
+        "            exp.Lateral,\n"
+        "            exp.Values,\n"
+        "            exp.TableSample,\n"
+        "            exp.Fetch,\n"
+        "            exp.RawString,\n"
+        "            exp.UnicodeString,\n"
+        "            exp.ByteString,\n"
+        "        )\n"
+        "        for rt in refuse_types:\n"
+        "            if isinstance(child, rt):\n"
+        '                return _refuse("UNSUPPORTED_SYNTAX", cls.__name__)\n'
+        "        extra_refuse = (\n"
+        '            "CurrentVersion",\n'
+        '            "Explode",\n'
+        '            "ExplodingGenerateSeries",\n'
+        '            "Rand",\n'
+        '            "Repeat",\n'
+        '            "Pad",\n'
+        '            "GroupConcat",\n'
+        '            "Pow",\n'
+        '            "RegexpLike",\n'
+        '            "DPipe",\n'
+        '            "Dot",\n'
+        "        )\n"
+        "        if cls.__name__ in extra_refuse:\n"
+        '            return _refuse("FUNCTION_NOT_ALLOWED", cls.__name__)\n',
+        "        if isinstance(child, exp.Anonymous):\n"
+        '            return _refuse("FUNCTION_NOT_ALLOWED", child.name or cls.__name__)\n'
+        "        refuse_types = (\n"
+        "            exp.Window,\n"
+        "            exp.Filter,\n"
+        "            exp.Lateral,\n"
+        "            exp.Values,\n"
+        "            exp.TableSample,\n"
+        "            exp.Fetch,\n"
+        "            exp.RawString,\n"
+        "            exp.UnicodeString,\n"
+        "            exp.ByteString,\n"
+        "        )\n"
+        "        for rt in refuse_types:\n"
+        "            if isinstance(child, rt):\n"
+        '                return _refuse("UNSUPPORTED_SYNTAX", cls.__name__)\n'
+        "        extra_refuse = (\n"
+        '            "CurrentVersion",\n'
+        '            "Explode",\n'
+        '            "ExplodingGenerateSeries",\n'
+        '            "Rand",\n'
+        '            "Repeat",\n'
+        '            "Pad",\n'
+        '            "GroupConcat",\n'
+        '            "RegexpLike",\n'
+        '            "DPipe",\n'
+        '            "Dot",\n'
+        "        )\n"
+        "        if cls.__name__ in extra_refuse:\n"
+        '            return _refuse("FUNCTION_NOT_ALLOWED", cls.__name__)\n',
         "tests/test_mutant_targets.py::test_m12_pow",
     ),
 ]
