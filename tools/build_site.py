@@ -16,6 +16,7 @@ SRC_SITE = ROOT / "site"
 OUT = ROOT / "site-dist"
 VENDOR = json.loads((SRC_SITE / "vendor.json").read_text(encoding="utf-8"))
 
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 
