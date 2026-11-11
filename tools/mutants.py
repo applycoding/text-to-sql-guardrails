@@ -110,8 +110,16 @@ MUTANTS: list[Mutant] = [
     Mutant(
         "M11",
         "src/t2sql/guard.py",
-        '        if isinstance(child, exp.Cast):\n            if child.to and not _is_allowed_cast(child.to):\n                return _refuse("CAST_NOT_ALLOWED", child.to.sql())\n',
-        "",
+        "        if isinstance(child, exp.Cast):\n"
+        "            if child.to and not _is_allowed_cast(child.to):\n"
+        '                return _refuse("CAST_NOT_ALLOWED", child.to.sql())\n'
+        "        if isinstance(child, exp.DataType):\n"
+        "            parent = child.parent\n"
+        "            if parent and isinstance(parent, exp.Cast):\n"
+        "                if not _is_allowed_cast(child):\n"
+        '                    return _refuse("CAST_NOT_ALLOWED", child.sql())\n'
+        "            continue\n",
+        "        if isinstance(child, exp.DataType):\n            continue\n",
         "tests/test_mutant_targets.py::test_m11_regclass_cast",
     ),
     Mutant(

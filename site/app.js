@@ -9,10 +9,13 @@ async function boot() {
     throw new Error("loadPyodide is not defined");
   }
   const pyodide = await loadPyodide({ indexURL: "./pyodide/" });
-  await pyodide.unpackArchive("sqlglot-30.31.0-py3-none-any.whl", "wheel");
+  const wheelData = await fetch("sqlglot-30.31.0-py3-none-any.whl").then((r) =>
+    r.arrayBuffer()
+  );
+  await pyodide.unpackArchive(wheelData, "wheel");
   for (const file of ["guard.py", "policy.py", "model.py"]) {
     const src = await fetch(`python/${file}`).then((r) => r.text());
-    pyodide.FS.writeFile(file, src);
+    pyodide.FS.writeFile(file, src, { encoding: "utf8" });
   }
   precomputed = await fetch("precomputed.json").then((r) => r.json());
   corpusExpected = await fetch("corpus_expected.json").then((r) => r.json());
