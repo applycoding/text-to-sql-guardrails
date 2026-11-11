@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from typing import Protocol
 
 import sqlglot
@@ -77,8 +78,6 @@ class StubModel:
         m = TOP_RE.match(q)
         if m:
             n = int(m.group(1))
-            if n > 99:
-                return None
             top_sql = sqlglot.parse_one(
                 (
                     "SELECT p.name, SUM(oi.quantity * oi.unit_price_cents) AS revenue_cents "
@@ -118,10 +117,6 @@ class StubModel:
             )
             return month_query.sql(dialect="postgres")
 
-        if "atlantis" in q or "pg_sleep" in q or "staff" in q or "drop table" in q:
-            return None
-        if "top 1000" in q or "ignore previous" in q:
-            return None
         return None
 
 
@@ -133,4 +128,5 @@ def make_model() -> Model:
         from t2sql.adapters.openai_compat import OpenAICompatModel
 
         return OpenAICompatModel()
+    print("unknown T2SQL_MODEL value", file=sys.stderr)
     raise SystemExit(2)

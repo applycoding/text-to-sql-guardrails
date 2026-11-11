@@ -73,11 +73,12 @@ document.getElementById("run").addEventListener("click", async () => {
   const question = document.getElementById("question").value;
   const sql = document.getElementById("sql").value;
   const result = await runGuard(question, sql);
-  const norm = question.trim().toLowerCase().replace(/\s+/g, " ");
+  const norm = question.trim().toLowerCase().replace(/\s+/g, " ").replace(/\?+$/, "").trim();
   const key = [norm, result.sql || "", precomputed.seed_hash || ""].join("|");
   const rows = precomputed.rows?.[key];
   render({
     banner: BANNER,
+    note: "AST checks ran in your browser; database checks ran in CI",
     ...result,
     rows: rows || "no precomputed rows for this query",
   });

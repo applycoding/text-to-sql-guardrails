@@ -368,7 +368,7 @@ Before the mutants, the runner checks that the unpatched baseline passes the sam
 | M11 | cast target check removed | `'pg_authid'::regclass` → `CAST_NOT_ALLOWED` |
 | M12 | node allow-list accepts `Binary` subclasses | `SELECT 2 ^ 1000000000` → `FUNCTION_NOT_ALLOWED` |
 
-M1–M9 were prototyped with the same targets, and all nine were killed. M10–M12 are specified but were not prototyped. The prototype check showed that M10 needs a synthetic plan, because no live query in this schema is over the cost bound without also being over the rows bound.
+M1 to M9 were prototyped with the same targets, and all nine were killed. M10-M12 are specified but were not prototyped. The prototype check showed that M10 needs a synthetic plan, because no live query in this schema is over the cost bound without also being over the rows bound.
 
 ## 13. Stub model and eval (`tests/test_eval.py`)
 
@@ -378,7 +378,7 @@ M1–M9 were prototyped with the same targets, and all nine were killed. M10–M
 | --- | --- | --- |
 | 1 | `how many customers (are )?in <city>` | `count(*)` with a city filter, only if the city is one of the 8 seeded cities |
 | 2 | `how many orders (are\|were) <status>` | `count(*)` with a status filter, only if the status is one of the 4 statuses |
-| 3 | `top <n> products by revenue` (n is 1–2 digits) | join, `sum(quantity * unit_price_cents)`, `ORDER BY revenue_cents DESC, p.id LIMIT n` |
+| 3 | `top <n> products by revenue` (n is 1 to 2 digits) | join, `sum(quantity * unit_price_cents)`, `ORDER BY revenue_cents DESC, p.id LIMIT n` |
 | 4 | `revenue by category` | join, grouped by category, ordered by category |
 | 5 | `orders per month in <20yy>` | `date_trunc('month', ordered_at)::date`, with a half-open date range for the year, grouped and ordered by month |
 
@@ -423,14 +423,14 @@ The throwaway prototype ran against local PostgreSQL 17.11 (Debian build), sqlgl
 - **Legitimate dry runs.** The highest values for the eval queries were cost 1227.74 and max plan rows 24000. The cross-join attacks reached 1.73e6 to 1.92e8 rows. The bounds are 50000 for cost and 1000000 for rows, so legitimate plans are at least 40× below both bounds.
 - **DB layer.** Every SQLSTATE in section 11 was observed. A real SCRAM-SHA-256 login worked with pg8000, and a wrong password gave 28P01.
   - `CREATE TEMP` succeeded until `REVOKE TEMP ... FROM PUBLIC` was added. That line is now in section 7.
-- **Mutation runner.** The baseline was green, and M1–M9 were each killed with exactly their target failing.
+- **Mutation runner.** The baseline was green, and M1 to M9 were each killed with exactly their target failing.
 - **Stub eval.** 10/10 executable questions matched the gold SQL, and the 5 refusals returned `None`.
 - **Browser.** Pyodide 314.0.7 core ran in headless Chromium, loading the sqlglot wheel with `unpackArchive`. The page used the same guard and stub and returned `OK|MULTI_STATEMENT|FUNCTION_NOT_ALLOWED|COLUMN_NOT_ALLOWED` in about 2.6 s. There were 0 requests to any other origin.
 
 These were not prototyped:
 
 - the GitHub Actions service container (no container runtime was available, and its locale and planner settings may differ);
-- mutants M10–M12;
+- mutants M10-M12;
 - the full CPython-versus-Pyodide corpus comparison (only 4 cases were compared);
 - the live LLM adapter, which by design is never run in CI.
 
@@ -495,7 +495,7 @@ The page never contacts a database or a model. All assets are same-origin, with 
 3. Synthetic plans prove the bounds, the cost-first precedence, the recursion into nested `Plans`, and `DRYRUN_ERROR` on a malformed plan. Every legitimate eval query has cost ≤ 50000 and max rows ≤ 1000000, and the values are logged. Check: `tests/test_explain.py`.
 4. Each positive-control row in section 10 meets (a), (b) and (c), and a refused case makes no explain or execute call. Check: `tests/test_positive_controls.py`.
 5. Each DB-layer row in section 11 returns its exact SQLSTATE, the connection stays usable afterwards, and the orders count is still 8000. Check: `tests/test_db_layer.py`.
-6. `tools/mutants.py` shows a green baseline and kills M1–M12, with exactly the target failing for each. A non-matching patch is an error. Check: CI `mutants`.
+6. `tools/mutants.py` shows a green baseline and kills M1 to M12, with exactly the target failing for each. A non-matching patch is an error. Check: CI `mutants`.
 7. The eval scores 10/10 executable questions equal to both the frozen rows and the gold SQL, and 5/5 `NO_TEMPLATE`. Check: `tests/test_eval.py`.
 8. The guard's output reparses identically. Benign meaning checks pass: a comment tail, a semicolon inside a string, a nested comment, and `ORDERS` in capitals all return the same rows as the plain query. Check: `tests/test_differential.py`.
 9. With `T2SQL_MODEL` unset the factory returns `StubModel`. An unknown value or a missing adapter variable exits 2. The test session blocks outbound sockets except Postgres, and CI defines no API key variable. Check: `tests/test_model.py`, plus a grep step in CI `lint` on the workflow env.

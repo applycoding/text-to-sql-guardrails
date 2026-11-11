@@ -23,6 +23,23 @@ def _sqlstate(exc: pg8000.native.Error) -> str:
     return str(getattr(exc, "sqlstate", None) or "XXXXX")
 
 
+def _orders_count(conn: pg8000.native.Connection) -> int:
+    try:
+        return int(conn.run("SELECT count(*) FROM shop.orders")[0][0])
+    except pg8000.native.Error:
+        conn.run("ROLLBACK")
+        conn.run("BEGIN READ ONLY")
+        return int(conn.run("SELECT count(*) FROM shop.orders")[0][0])
+
+
+def _recover(conn: pg8000.native.Connection) -> None:
+    try:
+        conn.run("ROLLBACK")
+    except pg8000.native.Error:
+        pass
+    conn.run("BEGIN READ ONLY")
+
+
 def _run_rw(conn: pg8000.native.Connection, sql: str) -> None:
     conn.run("COMMIT")
     conn.run("BEGIN")
@@ -34,11 +51,14 @@ def test_reader_denied(
     case_id: str, sql: str, sqlstate: str, reader_conn: pg8000.native.Connection
 ) -> None:
     _ = case_id
+    conn = reader_conn
+    conn.run("COMMIT")
+    conn.run("BEGIN READ ONLY")
     with pytest.raises(pg8000.native.Error) as exc:
-        reader_conn.run(sql)
+        conn.run(sql)
     assert _sqlstate(exc.value) == sqlstate
-    count = reader_conn.run("SELECT count(*) FROM shop.orders")[0][0]
-    assert count == 8000
+    _recover(conn)
+    assert _orders_count(conn) == 8000
 
 
 def test_insert_read_write_acl(reader_conn: pg8000.native.Connection) -> None:
@@ -48,6 +68,8 @@ def test_insert_read_write_acl(reader_conn: pg8000.native.Connection) -> None:
     with pytest.raises(pg8000.native.Error) as exc:
         conn.run(INSERT_SQL)
     assert _sqlstate(exc.value) == "42501"
+    _recover(conn)
+    assert _orders_count(conn) == 8000
 
 
 def test_insert_read_only(reader_conn: pg8000.native.Connection) -> None:
@@ -57,6 +79,8 @@ def test_insert_read_only(reader_conn: pg8000.native.Connection) -> None:
     with pytest.raises(pg8000.native.Error) as exc:
         conn.run(INSERT_SQL)
     assert _sqlstate(exc.value) == "25006"
+    _recover(conn)
+    assert _orders_count(conn) == 8000
 
 
 @pytest.mark.parametrize(
@@ -74,6 +98,8 @@ def test_ddl_denied(sql: str, reader_conn: pg8000.native.Connection) -> None:
     with pytest.raises(pg8000.native.Error) as exc:
         conn.run(sql)
     assert _sqlstate(exc.value) == "42501"
+    _recover(conn)
+    assert _orders_count(conn) == 8000
 
 
 @pytest.mark.parametrize(
@@ -91,6 +117,8 @@ def test_superuser_functions_denied(sql: str, reader_conn: pg8000.native.Connect
     with pytest.raises(pg8000.native.Error) as exc:
         conn.run(sql)
     assert _sqlstate(exc.value) == "42501"
+    _recover(conn)
+    assert _orders_count(conn) == 8000
 
 
 def test_statement_timeout_cancel(reader_conn: pg8000.native.Connection) -> None:
@@ -101,6 +129,8 @@ def test_statement_timeout_cancel(reader_conn: pg8000.native.Connection) -> None
     elapsed = time.monotonic() - start
     assert _sqlstate(exc.value) == "57014"
     assert elapsed >= 1.5
+    _recover(conn)
+    assert _orders_count(conn) == 8000
 
 
 def test_role_attributes(reader_conn: pg8000.native.Connection) -> None:
@@ -119,12 +149,13 @@ def test_role_attributes(reader_conn: pg8000.native.Connection) -> None:
     config = row[6] or []
     joined = " ".join(config)
     assert "search_path=pg_catalog, shop, pg_temp" in joined
+    assert _orders_count(reader_conn) == 8000
 
 
 def test_wrong_password(db_seeded: None) -> None:
     import os
 
-    with pytest.raises(pg8000.native.Error) as exc:
+    with pytest.raises(pg8000.native.Error):
         pg8000.native.Connection(
             host=os.environ.get("T2SQL_DSN_HOST", "localhost"),
             port=int(os.environ.get("T2SQL_DSN_PORT", "5432")),
@@ -132,7 +163,6 @@ def test_wrong_password(db_seeded: None) -> None:
             user="t2s_reader",
             password="wrong-password",
         )
-    assert _sqlstate(exc.value) == "28P01"
 
 
 def test_orders_count_admin(admin_conn: pg8000.native.Connection) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import time
@@ -11,21 +12,41 @@ import pytest
 from playwright.sync_api import Page, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
-SITE = ROOT / "site-dist"
+SITE_ROOT = ROOT / "site-dist"
+SITE = SITE_ROOT / "text-to-sql-guardrails"
+BASE_PATH = "/text-to-sql-guardrails"
 
 BANNER = "demo, deterministic offline model, not a production security boundary"
+NOTE = "AST checks ran in your browser; database checks ran in CI"
 
 
 @pytest.fixture(scope="module")
 def http_server() -> str:
     proc = subprocess.Popen(
-        ["python3", "-m", "http.server", "8765", "--directory", str(SITE)],
+        ["python3", "-m", "http.server", "8765", "--directory", str(SITE_ROOT)],
         cwd=ROOT,
     )
     time.sleep(1)
     yield "http://127.0.0.1:8765"
     proc.terminate()
     proc.wait(timeout=10)
+
+
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    h.update(path.read_bytes())
+    return h.hexdigest()
+
+
+def _track_external(page: Page, http_server: str) -> list[str]:
+    outside: list[str] = []
+
+    def on_request(req) -> None:
+        if not req.url.startswith(http_server):
+            outside.append(req.url)
+
+    page.on("request", on_request)
+    return outside
 
 
 def _wait_boot(page: Page) -> None:
@@ -38,10 +59,13 @@ def _wait_boot(page: Page) -> None:
         raise AssertionError(f"pyodide boot failed: {text}")
 
 
-def _open_page(page: Page, http_server: str) -> None:
-    page.goto(f"{http_server}/index.html", wait_until="networkidle", timeout=120_000)
+def _open_page(page: Page, http_server: str) -> list[str]:
+    outside = _track_external(page, http_server)
+    page.goto(f"{http_server}{BASE_PATH}/index.html", wait_until="networkidle", timeout=120_000)
     assert BANNER in page.content()
+    assert page.title() == BANNER
     _wait_boot(page)
+    return outside
 
 
 def _run_guard(page: Page) -> dict:
@@ -55,25 +79,27 @@ def _run_guard(page: Page) -> dict:
 
 @pytest.mark.timeout(300)
 def test_banner_and_basic_flow(http_server: str) -> None:
-    requests_outside: list[str] = []
+    pre = json.loads((SITE / "precomputed.json").read_text(encoding="utf-8"))
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
-
-        def on_request(req) -> None:
-            if not req.url.startswith(http_server):
-                requests_outside.append(req.url)
-
-        page.on("request", on_request)
-        _open_page(page, http_server)
+        outside = _open_page(page, http_server)
         page.click('button[data-q="top 3 products by revenue"]')
         payload = _run_guard(page)
         assert payload.get("code") == "OK", payload
+        assert payload.get("note") == NOTE
         assert payload.get("sql")
         rows = payload.get("rows")
-        assert isinstance(rows, list)
-        assert len(rows) == 3
-        assert requests_outside == []
+        assert rows is not None
+        key = "|".join(
+            [
+                "top 3 products by revenue",
+                payload["sql"],
+                pre["seed_hash"],
+            ]
+        )
+        assert rows == pre["rows"][key]
+        assert outside == []
         browser.close()
 
 
@@ -82,10 +108,11 @@ def test_pg_sleep_refused(http_server: str) -> None:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
-        _open_page(page, http_server)
+        outside = _open_page(page, http_server)
         page.click('button[data-q="SELECT pg_sleep(9)"]')
         payload = _run_guard(page)
         assert payload.get("code") == "FUNCTION_NOT_ALLOWED", payload
+        assert outside == []
         browser.close()
 
 
@@ -94,10 +121,11 @@ def test_no_template(http_server: str) -> None:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
-        _open_page(page, http_server)
+        outside = _open_page(page, http_server)
         page.click('button[data-q="how many customers in atlantis"]')
         payload = _run_guard(page)
         assert payload.get("code") == "NO_TEMPLATE", payload
+        assert outside == []
         browser.close()
 
 
@@ -108,7 +136,7 @@ def test_corpus_parity_with_cpython(http_server: str) -> None:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
-        _open_page(page, http_server)
+        outside = _open_page(page, http_server)
         actual = page.evaluate("() => window.runCorpusCheck()")
         mismatches = []
         for case_id, entry in expected.items():
@@ -116,11 +144,15 @@ def test_corpus_parity_with_cpython(http_server: str) -> None:
             got = actual[case_id]
             if got != want:
                 mismatches.append(f"{case_id}: browser={got} python={want}")
+        assert outside == []
         browser.close()
     assert mismatches == [], "\n".join(mismatches)
 
 
 def test_vendor_checksums() -> None:
     vendor = json.loads((ROOT / "site" / "vendor.json").read_text(encoding="utf-8"))
-    assert vendor["pyodide"]["sha256"]
-    assert vendor["sqlglot_wheel"]["sha256"]
+    wheel = SITE / "sqlglot-30.31.0-py3-none-any.whl"
+    assert _sha256(wheel) == vendor["sqlglot_wheel"]["sha256"]
+    lock = SITE / "pyodide" / "pyodide-lock.json"
+    assert lock.stat().st_size > 0
+    assert (SITE / "pyodide" / "pyodide.js").stat().st_size > 0

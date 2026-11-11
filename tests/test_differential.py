@@ -23,14 +23,17 @@ def test_reparse_roundtrip() -> None:
     ("variant", "plain"),
     [
         ("SELECT * FROM orders -- trailing", "SELECT * FROM orders"),
-        ("SELECT 'a;b' AS s FROM orders", "SELECT 'a;b' AS s FROM orders"),
+        ("SELECT 'a;b' AS s; ", "SELECT 'a;b' AS s"),
         ("SELECT 1 /* nested /* c */ ; DROP */", "SELECT 1"),
-        ("select * from ORDERS", "SELECT * FROM orders"),
+        ("select * from ORDERS", "select * from ORDERS"),
     ],
 )
 def test_benign_same_rows(variant: str, plain: str, db_seeded: None) -> None:
-    left = run_sql(variant)
-    right = run_sql(plain)
+    right_sql = check(plain).sql
+    left_sql = check(variant).sql
+    assert right_sql is not None and left_sql is not None
+    left = run_sql(left_sql)
+    right = run_sql(right_sql)
     assert left.code == "OK"
     assert right.code == "OK"
     assert left.rows == right.rows

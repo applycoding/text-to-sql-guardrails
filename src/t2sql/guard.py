@@ -51,13 +51,6 @@ def _statements(raw: str) -> list[exp.Expression]:
     return [cast(exp.Expression, stmt) for stmt in sqlglot.parse(raw, read="postgres") if stmt]
 
 
-def _strip_comment_only_tail(stmts: list[exp.Expression], raw: str) -> list[exp.Expression]:
-    """Return statements after removing a trailing comment-only fragment if any."""
-    if len(stmts) <= 1:
-        return stmts
-    return stmts
-
-
 def _forbidden_nodes(node: exp.Expression) -> exp.Expression | None:
     for child in node.walk():
         for forbidden in policy.FORBIDDEN_STATEMENT_NODES:
@@ -147,7 +140,10 @@ def _check_tables(node: exp.Expression) -> Verdict | None:
             if lname and lname.startswith("pg_"):
                 return _refuse("SYSTEM_CATALOG", lname)
             if schema_part:
-                schema_ok = not schema_quoted and schema_part.lower() == policy.ALLOWED_SCHEMA
+                if schema_quoted:
+                    schema_ok = schema_part == policy.ALLOWED_SCHEMA
+                else:
+                    schema_ok = schema_part.lower() == policy.ALLOWED_SCHEMA
                 if not schema_ok:
                     return _refuse("TABLE_NOT_ALLOWED", f"{schema_part}.{name}")
             table_ok = (not table_quoted and lname in policy.ALLOWED_TABLES) or (
@@ -168,6 +164,8 @@ def _is_allowed_cast(dtype: exp.DataType) -> bool:
         name = str(base.value).lower()
     else:
         name = str(base).lower()
+    if name in ("decimal",):
+        name = "numeric"
     if name not in policy.ALLOWED_CAST_TYPES:
         return False
     if name == "numeric" and (dtype.expressions or (isinstance(base, str) and "(" in base)):
@@ -177,17 +175,6 @@ def _is_allowed_cast(dtype: exp.DataType) -> bool:
 
 def _node_class_allowed(cls: type) -> bool:
     if cls in policy.STRUCTURAL_NODES or cls in policy.FUNCTION_NODES:
-        return True
-    if issubclass(cls, (exp.Binary, exp.Unary)) and cls in policy.STRUCTURAL_NODES:
-        return True
-    if cls in (
-        exp.Expression,
-        exp.Condition,
-        exp.Predicate,
-        exp.Func,
-        exp.DataType,
-        exp.UserDefinedFunction,
-    ):
         return True
     return False
 
@@ -242,14 +229,25 @@ def _check_nodes(node: exp.Expression) -> Verdict | None:
     return None
 
 
+def _table_aliases(node: exp.Expression) -> set[str]:
+    names: set[str] = set(policy.ALLOWED_TABLES)
+    for tbl in node.find_all(exp.Table):
+        alias = tbl.alias
+        if isinstance(alias, str):
+            names.add(alias.lower())
+        elif alias and alias.this:
+            names.add(alias.this.name.lower())
+        lname = (tbl.name or "").lower()
+        if lname:
+            names.add(lname)
+    return names
+
+
 def _whole_row_refs(node: exp.Expression) -> Verdict | None:
-    aliases: set[str] = set()
-    for ta in node.find_all(exp.TableAlias):
-        if ta.this and isinstance(ta.this, exp.Identifier):
-            aliases.add(ta.this.name.lower())
+    sources = _table_aliases(node)
     for col in node.find_all(exp.Column):
         name = (col.name or "").lower()
-        if name and name in aliases and not col.table:
+        if name and not col.table and name in sources:
             return _refuse("WHOLE_ROW_REFERENCE", col.name)
     return None
 
@@ -289,10 +287,68 @@ def _cte_column_schema(node: exp.Expression) -> dict[str, dict[str, str]]:
     return schema
 
 
+def _base_tables_in_query(node: exp.Expression) -> set[str]:
+    names: set[str] = set()
+    cte = _cte_names(node)
+    for tbl in node.find_all(exp.Table):
+        if isinstance(tbl.this, (exp.Anonymous, exp.ExplodingGenerateSeries)):
+            continue
+        _, name, table_quoted, _ = _table_name(tbl)
+        lname = (name or "").lower() if name and not table_quoted else (name or "")
+        if lname in policy.ALLOWED_TABLES:
+            names.add(lname)
+        alias = tbl.alias
+        alias_name = alias.lower() if isinstance(alias, str) else (
+            alias.this.name.lower() if alias and alias.this else ""
+        )
+        if alias_name and alias_name in cte:
+            continue
+    return names
+
+
+def _table_key(value: str | exp.Expression | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.lower()
+    if isinstance(value, exp.Identifier):
+        return value.name.lower()
+    return str(value).lower()
+
+
+def _resolve_column_table(col: exp.Column, node: exp.Expression) -> set[str]:
+    if col.table:
+        key = _table_key(col.table)
+        bases = _base_tables_in_query(node)
+        if key in bases:
+            return {key}
+        for tbl in node.find_all(exp.Table):
+            alias = tbl.alias
+            alias_name = alias.lower() if isinstance(alias, str) else (
+                alias.this.name.lower() if alias and alias.this else ""
+            )
+            if alias_name == key:
+                lname = (tbl.name or "").lower()
+                if lname in policy.ALLOWED_TABLES:
+                    return {lname}
+        return {key} if key in policy.ALLOWED_TABLES else set()
+    return _base_tables_in_query(node)
+
+
+def _output_aliases(node: exp.Expression) -> set[str]:
+    aliases: set[str] = set()
+    for sel in node.find_all(exp.Select):
+        for expr in sel.expressions:
+            if isinstance(expr, exp.Alias) and expr.alias:
+                aliases.add(expr.alias.lower())
+    return aliases
+
+
 def _check_columns(node: exp.Expression) -> Verdict | None:
     whole = _whole_row_refs(node)
     if whole:
         return whole
+    output_aliases = _output_aliases(node)
     try:
         qualified = qualify.qualify(
             node.copy(),
@@ -304,6 +360,28 @@ def _check_columns(node: exp.Expression) -> Verdict | None:
     except Exception as exc:
         return _refuse("COLUMN_NOT_ALLOWED", str(exc))
     _ = qualified
+    cte = _cte_names(node)
+    for col in node.find_all(exp.Column):
+        cname = (col.name or "").lower()
+        if not cname or cname == "*":
+            continue
+        if not col.table and cname in output_aliases:
+            continue
+        tables = _resolve_column_table(col, node)
+        if any(t in cte for t in tables):
+            continue
+        if not tables:
+            return _refuse("COLUMN_NOT_ALLOWED", cname)
+        allowed = False
+        for table in tables:
+            cols = policy.ALLOWED_COLUMNS.get(table)
+            if cols is None:
+                continue
+            if cname in cols:
+                allowed = True
+                break
+        if not allowed:
+            return _refuse("COLUMN_NOT_ALLOWED", cname)
     return None
 
 
@@ -337,6 +415,8 @@ def _apply_limit(node: exp.Expression) -> exp.Expression:
 
 def _check_limit(node: exp.Expression, cfg: GuardConfig) -> tuple[Verdict | None, exp.Expression]:
     out = node.copy()
+    if not cfg.limit:
+        return None, out
     for sel in out.find_all(exp.Select):
         lim = sel.args.get("limit")
         if lim is not None:
@@ -351,9 +431,39 @@ def _check_limit(node: exp.Expression, cfg: GuardConfig) -> tuple[Verdict | None
             off_val = int(off_expr.this)
             if off_val > policy.MAX_OFFSET:
                 return _refuse("OFFSET_NOT_ALLOWED", str(off_val)), out
-    if cfg.limit:
-        out = _apply_limit(out)
+    out = _apply_limit(out)
     return None, out
+
+
+def _stable_select_columns(sel: exp.Select) -> None:
+    expressions = list(sel.expressions)
+    expressions.sort(key=lambda e: (
+        (e.alias_or_name or "").lower() if hasattr(e, "alias_or_name") else str(e)
+    ))
+    sel.set("expressions", expressions)
+
+
+def _emit_sql(tree: exp.Expression) -> str:
+    try:
+        tree = qualify.qualify(
+            tree,
+            schema=cast(dict[str, object], _cte_column_schema(tree)),
+            dialect="postgres",
+            expand_stars=True,
+            validate_qualify_columns=False,
+        )
+    except Exception:
+        pass
+    for sel in tree.find_all(exp.Select):
+        _stable_select_columns(sel)
+    for table in tree.find_all(exp.Table):
+        if isinstance(table.this, (exp.Anonymous, exp.ExplodingGenerateSeries)):
+            continue
+        _, name, table_quoted, _ = _table_name(table)
+        lname = (name or "").lower() if name and not table_quoted else name
+        if lname in policy.ALLOWED_TABLES:
+            table.set("db", exp.Identifier(this=policy.ALLOWED_SCHEMA, quoted=True))
+    return tree.sql(dialect="postgres", comments=False)
 
 
 def check(sql: str, cfg: GuardConfig | None = None) -> Verdict:
@@ -422,27 +532,16 @@ def check(sql: str, cfg: GuardConfig | None = None) -> Verdict:
         if verdict:
             return verdict
 
-    limit_verdict, tree = _check_limit(tree, cfg)
-    if limit_verdict:
-        return limit_verdict
-
     if cfg.columns:
         verdict = _check_columns(tree)
         if verdict:
             return verdict
 
-    try:
-        tree = qualify.qualify(
-            tree,
-            schema=cast(dict[str, object], _cte_column_schema(tree)),
-            dialect="postgres",
-            expand_stars=True,
-            validate_qualify_columns=False,
-        )
-    except Exception:
-        pass
+    limit_verdict, tree = _check_limit(tree, cfg)
+    if limit_verdict:
+        return limit_verdict
 
-    emitted = tree.sql(dialect="postgres", comments=False)
+    emitted = _emit_sql(tree)
     try:
         reparsed = sqlglot.parse_one(emitted, read="postgres")
         re_emitted = reparsed.sql(dialect="postgres", comments=False)

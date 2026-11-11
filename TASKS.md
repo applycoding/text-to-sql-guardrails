@@ -20,7 +20,7 @@ Never weaken a test, a bound or an expected code to get a green run. Fix the cod
 
 ## T3. Guard
 
-- `policy.py` (allow-lists, bounds, reason codes) and `guard.py` (stages 1–10 in PLAN section 8, plus `GuardConfig`). The guard is pure and imports nothing from the database layer.
+- `policy.py` (allow-lists, bounds, reason codes) and `guard.py` (stages 1 to 10 in PLAN section 8, plus `GuardConfig`). The guard is pure and imports nothing from the database layer.
 - `tests/test_attacks.py` with every row of PLAN section 9, and `tests/test_differential.py`.
 - Accept: criteria 1 and 8.
 
@@ -45,7 +45,7 @@ Never weaken a test, a bound or an expected code to get a green run. Fix the cod
 
 ## T7. Mutation check
 
-- `tools/mutants.py` with M1–M12 from PLAN section 12, and `tests/test_mutant_targets.py`.
+- `tools/mutants.py` with M1 to M12 from PLAN section 12, and `tests/test_mutant_targets.py`.
 - `ci.yml` job `mutants`.
 - Accept: criterion 6. The kill matrix is printed in the job log.
 

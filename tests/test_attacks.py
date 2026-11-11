@@ -15,26 +15,36 @@ ATTACKS: list[tuple[str, str, str, str | None]] = [
         "MULTI_STATEMENT",
         None,
     ),
-    ("comment_tail", "SELECT * FROM orders -- ; DROP TABLE x", "OK", None),
+    (
+        "comment_tail",
+        "SELECT * FROM orders -- ; DROP TABLE x",
+        "OK",
+        'SELECT "orders"."customer_id" AS "customer_id", "orders"."id" AS "id", "orders"."ordered_at" AS "ordered_at", "orders"."status" AS "status" FROM "shop"."orders" AS "orders" LIMIT 100',
+    ),
     (
         "nested_comment",
         "SELECT 1 /* nested /* c */ ; DROP */",
         "OK",
         'SELECT 1 AS "1" LIMIT 100',
     ),
-    ("string_semicolon", "SELECT 'a;b' AS s; ", "OK", None),
+    (
+        "string_semicolon",
+        "SELECT 'a;b' AS s; ",
+        "OK",
+        'SELECT \'a;b\' AS "s" LIMIT 100',
+    ),
     ("dollar_quote", "SELECT $q$; DROP TABLE x$q$", "UNSUPPORTED_SYNTAX", None),
     (
         "cte_no_limit",
         "WITH a AS (SELECT id FROM orders) SELECT * FROM a",
         "OK",
-        None,
+        'WITH "a" AS (SELECT "orders"."id" AS "id" FROM "shop"."orders" AS "orders") SELECT "a"."id" AS "id" FROM "a" AS "a" LIMIT 100',
     ),
     (
         "tautology",
         "SELECT * FROM customers WHERE name = '' OR 1=1 --'",
         "OK",
-        None,
+        'SELECT "customers"."city" AS "city", "customers"."id" AS "id", "customers"."name" AS "name", "customers"."signup_date" AS "signup_date" FROM "shop"."customers" AS "customers" WHERE "customers"."name" = \'\' OR 1 = 1 LIMIT 100',
     ),
     (
         "insert",
@@ -308,6 +318,27 @@ ATTACKS: list[tuple[str, str, str, str | None]] = [
         None,
     ),
     ("whole_row", "SELECT c FROM customers c", "WHOLE_ROW_REFERENCE", None),
+    ("whole_row_table", "SELECT customers FROM customers", "WHOLE_ROW_REFERENCE", None),
+    ("whole_row_count", "SELECT count(customers) FROM customers", "WHOLE_ROW_REFERENCE", None),
+    ("whole_row_products", "SELECT products FROM products", "WHOLE_ROW_REFERENCE", None),
+    (
+        "having_max_email",
+        "SELECT id FROM customers GROUP BY id HAVING max(email) > ''",
+        "COLUMN_NOT_ALLOWED",
+        None,
+    ),
+    (
+        "having_min_email",
+        "SELECT count(*) FROM customers HAVING min(email) = 'c1@example.test'",
+        "COLUMN_NOT_ALLOWED",
+        None,
+    ),
+    (
+        "numeric_ok",
+        "SELECT 1::numeric",
+        "OK",
+        'SELECT CAST(1 AS DECIMAL) AS "1" LIMIT 100',
+    ),
     (
         "field_email",
         "SELECT (c).email FROM customers c",
@@ -333,9 +364,14 @@ ATTACKS: list[tuple[str, str, str, str | None]] = [
         "limit_rewrite",
         "SELECT * FROM orders LIMIT 100000",
         "OK",
-        None,
+        'SELECT "orders"."customer_id" AS "customer_id", "orders"."id" AS "id", "orders"."ordered_at" AS "ordered_at", "orders"."status" AS "status" FROM "shop"."orders" AS "orders" LIMIT 100',
     ),
-    ("orders_caps", "select * from ORDERS", "OK", None),
+    (
+        "orders_caps",
+        "select * from ORDERS",
+        "OK",
+        'SELECT "orders"."customer_id" AS "customer_id", "orders"."id" AS "id", "orders"."ordered_at" AS "ordered_at", "orders"."status" AS "status" FROM "shop"."orders" AS "orders" LIMIT 100',
+    ),
     ("too_long", "SELECT " + "1" * 3994, "TOO_LONG", None),
     (
         "too_complex",
@@ -353,9 +389,3 @@ def test_attack_row(case_id: str, sql: str, expected: str, expected_sql: str | N
     assert verdict.code == expected
     if expected_sql is not None:
         assert verdict.sql == expected_sql
-    if expected == "OK" and case_id == "limit_rewrite":
-        assert verdict.sql is not None
-        assert verdict.sql.rstrip().endswith("LIMIT 100")
-    if expected == "OK" and case_id == "cte_no_limit":
-        assert verdict.sql is not None
-        assert "LIMIT 100" in verdict.sql

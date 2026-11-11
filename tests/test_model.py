@@ -6,6 +6,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 from t2sql.model import StubModel, make_model
 
 
@@ -50,3 +52,21 @@ def test_openai_adapter_missing_env_exits_2() -> None:
 def test_stub_no_network_calls() -> None:
     model = StubModel()
     assert model.to_sql("how many customers in Denver?") is not None
+
+
+def test_socket_guard_blocks_other_hosts() -> None:
+    import socket
+
+    with pytest.raises(OSError):
+        socket.create_connection(("93.184.216.34", 80), timeout=1)
+
+
+def test_openai_adapter_to_sql_blocked() -> None:
+    os.environ["T2SQL_MODEL"] = "openai-compatible"
+    os.environ["T2SQL_LLM_BASE_URL"] = "http://93.184.216.34"
+    os.environ["T2SQL_LLM_API_KEY"] = "x"
+    os.environ["T2SQL_LLM_MODEL"] = "x"
+    from t2sql.adapters.openai_compat import OpenAICompatModel
+
+    model = OpenAICompatModel()
+    assert model.to_sql("hello") is None

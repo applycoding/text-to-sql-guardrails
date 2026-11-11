@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import urllib.error
 import urllib.request
 
@@ -18,6 +19,10 @@ class OpenAICompatModel:
         self.api_key = os.environ.get("T2SQL_LLM_API_KEY")
         self.model = os.environ.get("T2SQL_LLM_MODEL")
         if not self.base_url or not self.api_key or not self.model:
+            print(
+                "missing T2SQL_LLM_BASE_URL, T2SQL_LLM_API_KEY, or T2SQL_LLM_MODEL",
+                file=sys.stderr,
+            )
             raise SystemExit(2)
 
     def to_sql(self, question: str) -> str | None:

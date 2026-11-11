@@ -35,15 +35,30 @@ jobs:
           diff /tmp/local.sha /tmp/upstream.sha
       - name: action pin check
         run: |
-          if grep -E 'uses:.*@[^0-9a-f]{40}' .github/workflows/*.yml; then
-            echo 'unpinned action ref'
-            exit 1
-          fi
+          set -euo pipefail
+          bad=0
+          while IFS= read -r line; do
+            if echo "$line" | grep -qvE '@[0-9a-f]{40}( |$)'; then
+              echo "unpinned uses: $line"
+              bad=1
+            fi
+          done < <(grep -hE '^\s*-?\s*uses:' .github/workflows/*.yml || true)
+          grep -q '@sha256:' .github/workflows/ci.yml || { echo 'postgres image not digest-pinned'; bad=1; }
+          exit $bad
       - name: forbid tautology tests
         run: |
-          ! rg -n 'assert True|pytest\.skip|xfail' tests/
+          set -euo pipefail
+          if grep -rnE 'assert True|pytest\.skip|xfail' tests/; then
+            echo 'forbidden test pattern found'
+            exit 1
+          fi
       - name: no API key in workflow
-        run: '! rg -n T2SQL_LLM_API_KEY .github/workflows/ci.yml'
+        run: |
+          set -euo pipefail
+          if grep -n 'T2SQL_LLM_API_KEY' .github/workflows/ci.yml; then
+            echo 'API key variable must not appear in CI workflow'
+            exit 1
+          fi
       - name: README required sections
         run: |
           grep -q 'demo, deterministic offline model, not a production security boundary' README.md
@@ -89,6 +104,22 @@ jobs:
           exit 1
       - run: python -m t2sql.seed
       - run: python -c "import pg8000.native as p; print(p.Connection(host='localhost', user='postgres', password='ci_admin').run('SELECT version()'))"
+      - name: pipeline plan metrics
+        run: |
+          python <<'PY'
+          from t2sql.pipeline import run_sql
+          rows = [
+              ("orders_x_items", "SELECT o.id FROM orders o, order_items i", "DRYRUN_ROWS", 192_000_000),
+              ("orders_x_customers", "SELECT o.id FROM orders o, customers c", "DRYRUN_ROWS", 8_000_000),
+              ("items_self_join", "SELECT a.order_id FROM order_items a JOIN order_items b ON a.product_id = b.product_id", "DRYRUN_ROWS", 4_800_002),
+              ("orders_x_items_count", "SELECT count(*) FROM orders o, order_items i", "DRYRUN_COST", 2_880_651),
+          ]
+          for case_id, sql, code, bound in rows:
+              r = run_sql(sql)
+              assert r.code == code, (case_id, r.code)
+              print(f"pipeline {case_id} code={r.code} bound_ref={bound}")
+          PY
+      - run: python tools/freeze_eval_fixture.py
       - run: pytest -p no:cacheprovider -rA tests
   mutants:
     needs: test

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Targeted tests for mutation check M1–M12."""
+"""Targeted tests for mutation check M1 to M12."""
 
 from __future__ import annotations
 

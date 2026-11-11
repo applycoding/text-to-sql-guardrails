@@ -15,8 +15,6 @@ FIXTURE = Path(__file__).parent / "fixtures" / "eval_expected.json"
 
 
 def _admin_rows(sql: str, admin_conn: pg8000.native.Connection) -> list[list[object]]:
-    if not sql:
-        return []
     admin_conn.run("SET search_path TO shop, public")
     rows: list[list[object]] = []
     for row in admin_conn.run(sql):
@@ -37,20 +35,10 @@ def test_eval_regression(db_seeded: None, admin_conn: pg8000.native.Connection) 
         result = run_question(model, entry["question"])
         assert result.code == "OK", entry["question"]
         assert result.rows is not None
-        frozen = entry["rows"]
-        if entry.get("min_rows"):
-            assert len(result.rows) == entry["min_rows"]
-            for i, row in enumerate(frozen):
-                assert result.rows[i] == row
-        else:
-            assert result.rows == frozen
-        gold = entry.get("gold_sql")
-        if gold:
-            gold_rows = _admin_rows(gold, admin_conn)
-            assert result.rows == gold_rows
-        elif result.sql:
-            gold_rows = _admin_rows(result.sql, admin_conn)
-            assert result.rows == gold_rows
+        assert result.rows == entry["rows"]
+        gold = entry["gold_sql"]
+        gold_rows = _admin_rows(gold, admin_conn)
+        assert result.rows == gold_rows
     for question in data["refusals"]:
         result = run_question(model, question)
         assert result.code == "NO_TEMPLATE", question

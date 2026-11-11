@@ -45,6 +45,8 @@ def main(argv: list[str] | None = None) -> int:
             "rows": result.rows,
         }
         _emit(payload)
+        if result.code == "DB_UNAVAILABLE":
+            return 4
         return 0 if result.code == "OK" else 3
 
     if args.command == "check":
@@ -56,8 +58,6 @@ def main(argv: list[str] | None = None) -> int:
             "rows": None,
         }
         _emit(payload)
-        if verdict.code == "DB_UNAVAILABLE":
-            return 4
         return 0 if verdict.ok else 3
 
     if args.command == "run":

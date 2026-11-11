@@ -8,12 +8,14 @@ import json
 import shutil
 import sys
 import tarfile
+import tempfile
 import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC_SITE = ROOT / "site"
-OUT = ROOT / "site-dist"
+OUT_ROOT = ROOT / "site-dist"
+OUT = OUT_ROOT / "text-to-sql-guardrails"
 VENDOR = json.loads((SRC_SITE / "vendor.json").read_text(encoding="utf-8"))
 
 sys.path.insert(0, str(ROOT))
@@ -26,12 +28,13 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _download(url: str, dest: Path, expected: str) -> None:
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    urllib.request.urlretrieve(url, dest)
-    actual = _sha256(dest)
+def _download(url: str, expected: str) -> Path:
+    tmp = Path(tempfile.mkstemp(suffix=".download")[1])
+    urllib.request.urlretrieve(url, tmp)
+    actual = _sha256(tmp)
     if actual != expected:
-        raise SystemExit(f"checksum mismatch for {dest.name}: {actual}")
+        raise SystemExit(f"checksum mismatch for {url}: {actual}")
+    return tmp
 
 
 def _copy_guard_sources(out_python: Path) -> None:
@@ -65,7 +68,7 @@ def _precomputed() -> dict[str, object]:
         result = run_question(model, q)
         if result.code != "OK" or result.sql is None:
             continue
-        norm = q.strip().lower()
+        norm = q.strip().lower().rstrip("?").strip()
         key = "|".join([norm, result.sql, schema])
         rows_map[key] = result.rows or []
     return {"seed_hash": schema, "rows": rows_map}
@@ -78,35 +81,53 @@ def _corpus() -> dict[str, dict[str, str]]:
     return {case_id: {"sql": sql, "code": check(sql).code} for case_id, sql, *_ in ATTACKS}
 
 
+def _write_licenses(out: Path) -> None:
+    licenses = out / "licenses"
+    licenses.mkdir(parents=True, exist_ok=True)
+    (licenses / "sqlglot-MIT.txt").write_text(
+        "sqlglot 30.31.0\nMIT License\nCopyright (c) Toby Mao\n",
+        encoding="utf-8",
+    )
+    (licenses / "pyodide-MPL-2.0.txt").write_text(
+        "Pyodide 314.0.7 - MPL-2.0 (includes CPython PSF-2.0 and Emscripten runtime code).\n",
+        encoding="utf-8",
+    )
+    (licenses / "cpython-PSF-2.0.txt").write_text(
+        "CPython 3.14 as bundled in Pyodide — PSF License Agreement\n",
+        encoding="utf-8",
+    )
+
+
 def main() -> None:
-    if OUT.exists():
-        shutil.rmtree(OUT)
+    if OUT_ROOT.exists():
+        shutil.rmtree(OUT_ROOT)
     OUT.mkdir(parents=True)
 
     pyodide = VENDOR["pyodide"]
     wheel = VENDOR["sqlglot_wheel"]
-    archive = OUT / "vendor" / "pyodide-core.tar.bz2"
-    whl = OUT / "vendor" / "sqlglot.whl"
-    _download(pyodide["url"], archive, pyodide["sha256"])
-    _download(wheel["url"], whl, wheel["sha256"])
+    archive = _download(pyodide["url"], pyodide["sha256"])
+    whl = _download(wheel["url"], wheel["sha256"])
 
-    extract_root = OUT / "vendor_extract"
-    extract_root.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(archive, "r:bz2") as tf:
-        tf.extractall(extract_root, filter="data")
-    pyodide_dir = OUT / "pyodide"
-    nested = extract_root / "pyodide"
-    if nested.exists():
-        shutil.copytree(nested, pyodide_dir, dirs_exist_ok=True)
-    else:
-        raise SystemExit("missing pyodide directory in vendor archive")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        extract_root = Path(tmpdir)
+        with tarfile.open(archive, "r:bz2") as tf:
+            tf.extractall(extract_root, filter="data")
+        nested = extract_root / "pyodide"
+        if not nested.exists():
+            raise SystemExit("missing pyodide directory in vendor archive")
+        shutil.copytree(nested, OUT / "pyodide", dirs_exist_ok=True)
+
     shutil.copy(whl, OUT / "sqlglot-30.31.0-py3-none-any.whl")
     for name in ("index.html", "style.css", "app.js", "vendor.json"):
         shutil.copy(SRC_SITE / name, OUT / name)
 
     _copy_guard_sources(OUT / "python")
+    _write_licenses(OUT)
     (OUT / "precomputed.json").write_text(json.dumps(_precomputed(), default=str), encoding="utf-8")
     (OUT / "corpus_expected.json").write_text(json.dumps(_corpus()), encoding="utf-8")
+
+    archive.unlink(missing_ok=True)
+    whl.unlink(missing_ok=True)
     print(f"site built at {OUT}")
 
 
