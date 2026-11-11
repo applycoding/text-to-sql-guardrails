@@ -34,8 +34,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "ask":
         try:
             model = make_model()
-        except SystemExit:
-            return 2
+        except SystemExit as exc:
+            code = exc.code
+            return int(code) if isinstance(code, int) else 2
         result = run_question(model, args.question)
         payload = {
             "code": result.code,

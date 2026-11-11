@@ -43,10 +43,13 @@ def test_banner_and_basic_flow(http_server: str) -> None:
         assert BANNER in page.content()
         page.click('button[data-q="top 3 products by revenue"]')
         page.click("#run")
-        page.wait_for_timeout(5000)
+        page.wait_for_function(
+            "() => { const t = document.querySelector('#out')?.textContent || ''; return t.includes('OK') || t.includes('BOOT_ERROR'); }",
+            timeout=120_000,
+        )
         text = page.locator("#out").inner_text()
         payload = json.loads(text)
-        assert payload["code"] == "OK"
+        assert payload.get("code") == "OK", payload
         assert requests_outside == []
         browser.close()
 

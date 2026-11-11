@@ -1,26 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
-import { loadPyodide } from "./pyodide/pyodide.mjs";
-
 const BANNER = "demo, deterministic offline model, not a production security boundary";
 
 let precomputed = {};
-let corpus = {};
+let pyodideReady = null;
 
 async function boot() {
-  const pyodide = await loadPyodide({ indexURL: "./pyodide/" });
+  if (typeof loadPyodide === "undefined") {
+    return;
+  }
+  pyodideReady = loadPyodide({ indexURL: "./pyodide/" });
+  const pyodide = await pyodideReady;
   await pyodide.unpackArchive("sqlglot-30.31.0-py3-none-any.whl", "wheel");
   for (const file of ["guard.py", "policy.py", "model.py"]) {
     const src = await fetch(`python/${file}`).then((r) => r.text());
     pyodide.FS.writeFile(file, src);
   }
-  await pyodide.loadPackage(["micropip"]);
   precomputed = await fetch("precomputed.json").then((r) => r.json());
-  corpus = await fetch("corpus_expected.json").then((r) => r.json());
   window.pyodide = pyodide;
-}
-
-function normalize(q) {
-  return q.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function render(payload) {
@@ -35,12 +31,12 @@ async function runGuard(question, sqlText) {
   if (sqlText) {
     py.globals.set("input_sql", sqlText);
     return py.runPythonAsync(
-      "from guard import check\n{'code': check(input_sql).code, 'sql': check(input_sql).sql}"
+      "from guard import check\n{'code': check(input_sql).code, 'sql': check(input_sql).sql or ''}"
     );
   }
   py.globals.set("input_q", question);
   return py.runPythonAsync(
-    "from model import StubModel\nfrom guard import check\nm=StubModel()\ns=m.to_sql(input_q)\n{'code': 'NO_TEMPLATE' if s is None else check(s).code, 'sql': check(s).sql if s else None}"
+    "from model import StubModel\nfrom guard import check\nm=StubModel()\ns=m.to_sql(input_q)\n{'code': 'NO_TEMPLATE' if s is None else check(s).code, 'sql': (check(s).sql if s else '')}"
   );
 }
 
@@ -48,7 +44,8 @@ document.getElementById("run").addEventListener("click", async () => {
   const question = document.getElementById("question").value;
   const sql = document.getElementById("sql").value;
   const result = await runGuard(question, sql);
-  const key = [normalize(question), result.sql || "", precomputed.seed_hash || ""].join("|");
+  const norm = question.trim().toLowerCase().replace(/\s+/g, " ");
+  const key = [norm, result.sql || "", precomputed.seed_hash || ""].join("|");
   const rows = precomputed.rows?.[key];
   render({
     banner: BANNER,
@@ -70,4 +67,4 @@ document.querySelectorAll("#examples button").forEach((btn) => {
   });
 });
 
-boot();
+boot().catch((err) => render({ code: "BOOT_ERROR", detail: String(err) }));

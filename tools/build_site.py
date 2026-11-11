@@ -90,10 +90,16 @@ def main() -> None:
     _download(pyodide["url"], archive, pyodide["sha256"])
     _download(wheel["url"], whl, wheel["sha256"])
 
-    pyodide_dir = OUT / "pyodide"
-    pyodide_dir.mkdir(parents=True)
+    extract_root = OUT / "vendor_extract"
+    extract_root.mkdir(parents=True, exist_ok=True)
     with tarfile.open(archive, "r:bz2") as tf:
-        tf.extractall(pyodide_dir)
+        tf.extractall(extract_root, filter="data")
+    pyodide_dir = OUT / "pyodide"
+    nested = extract_root / "pyodide"
+    if nested.exists():
+        shutil.copytree(nested, pyodide_dir, dirs_exist_ok=True)
+    else:
+        raise SystemExit("missing pyodide directory in vendor archive")
     shutil.copy(whl, OUT / "sqlglot-30.31.0-py3-none-any.whl")
     for name in ("index.html", "style.css", "app.js", "vendor.json"):
         shutil.copy(SRC_SITE / name, OUT / name)

@@ -34,8 +34,8 @@ MUTANTS: list[Mutant] = [
     Mutant(
         "M2",
         "src/t2sql/guard.py",
-        "        if type(tree) not in policy.ALLOWED_ROOT_TYPES:\n            return _refuse(\"STATEMENT_NOT_ALLOWED\", type(tree).__name__)\n",
-        "        if type(tree) not in policy.ALLOWED_ROOT_TYPES and type(tree) is not exp.Command:\n            return _refuse(\"STATEMENT_NOT_ALLOWED\", type(tree).__name__)\n",
+        '        if type(tree) not in policy.ALLOWED_ROOT_TYPES:\n            return _refuse("STATEMENT_NOT_ALLOWED", type(tree).__name__)\n',
+        '        if type(tree) not in policy.ALLOWED_ROOT_TYPES and type(tree) is not exp.Command:\n            return _refuse("STATEMENT_NOT_ALLOWED", type(tree).__name__)\n',
         "tests/test_mutant_targets.py::test_m2_do_block",
     ),
     Mutant(
